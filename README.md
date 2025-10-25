@@ -3,7 +3,7 @@
 
 FLARE is a next-generation **AI-driven cybersecurity platform** designed to detect, explain, and respond to threats in real time — while preserving data privacy through **Federated Learning**.
 
-![FLARE Dashboard](a904306c-256c-4bd1-8195-8806d5c7f664.jpg)
+![FLARE Dashboard](https://flare-lemon.vercel.app/)
 
 ---
 
@@ -44,17 +44,21 @@ Existing tools like Splunk are expensive, centralized, and compromise privacy.
 
 ```mermaid
 flowchart TD
-A[Data Sources: System / Application / Network / Cloud Logs]
+A[Data Sources: System Logs / Application Logs / Network Logs / Cloud Logs]
 B[Log Ingestion Layer: Collector Agents + Parser/Normalizer]
 C[Message Queue: RabbitMQ / Kafka]
-D[AI/Detection Layer: Rule-Based + ML Anomaly + Threat Correlation]
+D[AI/Detection Layer: Rule-Based Detection + ML Anomaly Detection + Threat Correlation Engine]
 E[Storage Layer: SQL/NoSQL]
-F[Learning Layer: Retraining + Evaluation]
-G[Response Layer: Dashboard, Alerts, Automated Actions]
-H[Admin Layer: User Management + Policy Config]
+F[Learning Layer: Retraining + Evaluation & Comparison]
+G[Response Layer: Dashboard & Visualization + Email/SMS Alerts + Automated Actions - Block IP, Disable Account]
+H[Admin Layer: User Management + Policy Configurations]
 
-A --> B --> C --> D --> G
+A --> B
+B  --> C
+C --> D
 D --> E
-E --> F --> D
+E --> F
+F --> D
+D --> G
 G --> H
 
