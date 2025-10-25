@@ -4,7 +4,7 @@
 FLARE is a next-generation **AI-driven cybersecurity platform** designed to detect, explain, and respond to threats in real time — while preserving data privacy through **Federated Learning**.
 
 ### 🌐 **Live Dashboard:**  
-👉 [**FLARE Dashboard (Vercel)**](https://flare-lemon.vercel.app/)  
+[**FLARE Dashboard (Vercel)**](https://flare-lemon.vercel.app/)  
 
 ---
 
