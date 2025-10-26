@@ -1,0 +1,44 @@
+{
+  "agent": {
+    "name": "auto",
+    "version": "1.0.0",
+    "collection_interval": 10,
+    "batch_size": 100
+  },
+  "server": {
+    "endpoint": "http://localhost:8000/api/logs/ingest",
+    "timeout": 30,
+    "max_retries": 3,
+    "retry_delay": 5
+  },
+  "event_logs": [
+    {
+      "log_name": "Security",
+      "event_ids": [4624, 4625, 4672, 4720, 4732, 4740],
+      "levels": [2, 3, 4],
+      "description": "Authentication and account management events"
+    },
+    {
+      "log_name": "System",
+      "event_ids": [7036, 7040, 1102],
+      "levels": [2, 3, 4],
+      "description": "Service changes and audit log events"
+    },
+    {
+      "log_name": "Application",
+      "event_ids": [],
+      "levels": [2, 3, 4],
+      "description": "Application errors and warnings"
+    }
+  ],
+  "storage": {
+    "local_queue_path": "C:\\SIEM\\Queue",
+    "local_log_path": "C:\\SIEM\\Logs",
+    "max_queue_size": 10000
+  },
+  "features": {
+    "enable_local_queue": true,
+    "enable_compression": false,
+    "enable_encryption": false
+  }
+}
