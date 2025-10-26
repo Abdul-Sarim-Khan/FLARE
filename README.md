@@ -58,7 +58,7 @@ Existing tools like Splunk are expensive, centralized, and compromise privacy.
 - Endpoint and data ingestion monitoring  
 ---
 
-## 📚 Datasets Used
+## 📚 Datasets
 
 Our model and simulations are trained and tested using **real-world, research-grade datasets** that closely mimic enterprise-scale cyber environments.
 
