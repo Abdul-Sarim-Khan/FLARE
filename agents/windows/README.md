@@ -1,214 +1,125 @@
-# Windows Log Collection Agent
+# ⚙️ FLARE Log Collection Agent  
+**by IU - Beaconers**
 
-## Overview
-Collects Windows security, system, and application logs and sends them to the SIEM backend server.
 
-## Features
-- ✅ Real-time log collection from Windows Event Logs
-- ✅ Converts logs to unified JSON format
-- ✅ Offline queueing when server unavailable
-- ✅ Automatic retry mechanism
-- ✅ Configurable via JSON file
-- ✅ Low resource usage (<5% CPU, ~50MB RAM)
 
-## Prerequisites
-- Windows 10/11 or Windows Server 2016+
-- PowerShell 5.1 or higher
-- Administrator privileges
-- Network connectivity to SIEM backend
 
-## Installation
+## 🧩 Overview
+The **FLARE Log Collection Agent** is a lightweight **PowerShell-based system monitor** designed to collect, deduplicate, and locally archive **Windows Event Logs** in real-time.  
+It serves as the **data collection module** of the [FLARE](https://github.com/IU-Beaconers/FLARE) platform, providing **clean, structured, and privacy-preserving** log data for analysis and threat detection.
 
-### Quick Install
+---
+
+## 🚀 Features
+- ✅ Real-time Windows Event Log collection  
+- ✅ Live display in PowerShell console with color-coded severity  
+- ✅ Deduplication to avoid repetitive logs  
+- ✅ Local JSON archiving (no network transmission)  
+- ✅ Configurable batch size & interval  
+- ✅ Persistent state between restarts  
+- ✅ Runs automatically via Windows Scheduled Task  
+- ✅ Lightweight & low resource usage  
+
+---
+
+## 🧱 Prerequisites
+
+| Requirement | Description |
+|--------------|-------------|
+| **OS** | Windows 10/11 or Windows Server 2016+ |
+| **PowerShell** | Version 5.1 or higher |
+| **Permissions** | Administrator privileges required |
+| **Storage** | Minimal disk space for archives and state files |
+
+---
+
+## ⚡ Quick Start
+
+### 🔹 1. Installation
 ```powershell
 # Run as Administrator
-.\install.ps1 -ServerEndpoint "http://your-siem-server:8000/api/logs/ingest"
+.\install.ps1
 ```
 
-### Manual Install
-```powershell
-# 1. Copy files to desired location
-Copy-Item .\* -Destination "C:\SIEM\Agent\" -Recurse
-
-# 2. Edit config.json with your server details
-notepad "C:\SIEM\Agent\config.json"
-
-# 3. Test the agent
-.\LogCollectionAgent.ps1 -Test
-
-# 4. Start collecting
-.\LogCollectionAgent.ps1 -Start
-```
-
-## Configuration
-
-Edit `config.json`:
-```json
-{
-  "server": {
-    "endpoint": "http://localhost:8000/api/logs/ingest",
-    "timeout": 30
-  },
-  "agent": {
-    "collection_interval": 10,
-    "batch_size": 100
-  }
-}
-```
-
-### Key Settings:
-- **endpoint**: URL of your SIEM backend API
-- **collection_interval**: Seconds between log collections (default: 10)
-- **batch_size**: Maximum events per batch (default: 100)
-
-## Usage
-
-### Test Mode
+### 🔹 2. Test Agent
 ```powershell
 .\LogCollectionAgent.ps1 -Test
 ```
-Runs diagnostics to verify:
-- Administrator permissions
-- Event log access
-- Server connectivity
-- Configuration validity
 
-### Start Collection
+### 🔹 3. Start Live Collection
 ```powershell
 .\LogCollectionAgent.ps1 -Start
 ```
-Begins collecting logs in foreground. Press Ctrl+C to stop.
+---
+### ⚙️ Automated Installation
+The install.ps1 script performs the following:
 
-### Run as Service (After Installation)
+- Creates installation directory: C:\Program Files\FLARE\Agent
+- Copies all agent files
+- Creates data directories:
+- C:\FLARE-data\Data
+- C:\FLARE-data\Logs
+- Configures Windows audit policies
+- Registers a Windows Scheduled Task for auto startup
+---
+
+## 💾 Data Storage
+### 📂 State Management
+- File: C:\FLARE-data\Data\agent_state.json
+- Tracks the last collected event to ensure deduplication.
+
+### 🗃️ Log Archive
+- File: C:\FLARE-data\Logs\logs.json
+- Stores all collected logs in JSON format.
+
+## 🧮 Collection Logic
+### Process	Description
+- Deduplication	Filters already collected events using RecordId
+- Batch Processing	Collects logs in batches of N per cycle
+- State Tracking	Saves last timestamp and RecordId
+- Chronological Sorting	Ensures event order consistency
+
+## 🧩 Scheduled Task Management
 ```powershell
-# Start
-Start-ScheduledTask -TaskName "SIEMLogAgent"
-
-# Stop
-Stop-ScheduledTask -TaskName "SIEMLogAgent"
-
-# Check status
-Get-ScheduledTask -TaskName "SIEMLogAgent"
+# View task status
+Get-ScheduledTask -TaskName "FLARELogCollectorAgent"
 ```
 
-## Event Types Collected
-
-### Security Events
-- **4624**: Successful logon
-- **4625**: Failed logon (brute force indicator)
-- **4672**: Special privileges assigned (privilege escalation)
-- **4720**: User account created
-- **4732**: User added to security group
-- **4740**: Account locked out
-
-### System Events
-- **7036**: Service state changes
-- **7040**: Service startup type changed
-- **1102**: Audit log cleared (tampering indicator)
-
-### Application Events
-- Warnings and Errors only
-
-## Monitoring
-
-### View Live Logs
+## 🧰 Agent Health
 ```powershell
-Get-Content C:\SIEM\Logs\agent_$(Get-Date -Format 'yyyyMMdd').log -Tail 20 -Wait
+.\LogCollectionAgent.ps1 -Test
 ```
 
-### Check Queue Status
-```powershell
-Get-ChildItem C:\SIEM\Queue\
-```
+## 📈 Performance
+### Metric	Value
+- CPU Usage	<2%
+- Memory Usage	20–50 MB
+- Archive Growth	~1–5 MB per 1,000 events
+- Collection Interval	10 seconds (default)
+- Batch Size	100 events per cycle
 
-### View Statistics
-```powershell
-# In the agent output
-# Shows events collected, sent, queued
-```
+### 🛡️ Security & Compliance
+- Operates locally — no external network transmission
+- Requires Admin or SYSTEM privileges only
+- Adheres to Windows Audit Policy for:
+- Logon/Logoff
+- Account Management
+- Privilege Use
+- All logs remain stored in C:\FLARE-data under secured ACL permissions.
 
-## Troubleshooting
-
-### Agent Not Collecting Logs
-```powershell
-# Check if running as Administrator
-([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-
-# Verify audit policies
-auditpol /get /category:*
-
-# Enable required auditing
-auditpol /set /subcategory:"Logon" /success:enable /failure:enable
-```
-
-### Cannot Connect to Server
-```powershell
-# Test connectivity
-Test-NetConnection -ComputerName your-server -Port 8000
-
-# Check firewall
-Get-NetFirewallRule | Where-Object {$_.DisplayName -like "*SIEM*"}
-```
-
-### High CPU/Memory Usage
-- Increase `collection_interval` in config.json
-- Decrease `batch_size` in config.json
-- Check for event storms in Windows logs
-
-## Uninstallation
+## 🧰 Uninstallation
+### 🔹 Complete Removal
 ```powershell
 .\install.ps1 -Uninstall
 ```
+#### Removes:
 
-This will:
-- Stop the agent
-- Remove scheduled task
-- Delete agent files
-- Remove data directories (queued logs)
+- Scheduled Task
+- Installation directory
+- Data & Log directories
 
-## Security Considerations
-
-### Production Deployment
-- ✅ Use HTTPS for server endpoint
-- ✅ Implement certificate validation
-- ✅ Use service account with minimal permissions
-- ✅ Encrypt queued logs at rest
-- ✅ Rotate log files regularly
-
-### Network Security
-- Agent uses outbound HTTP/HTTPS only
-- No inbound ports required
-- Compatible with corporate firewalls
-- Supports proxy configuration (add to config.json)
-
-## Performance
-
-### Expected Resource Usage
-- **CPU**: <5% (idle), <15% (peak)
-- **Memory**: 50-100 MB
-- **Network**: ~1-5 KB per event
-- **Disk**: ~100 MB per day per agent
-
-### Scaling
-- Supports 100-500 events/second per agent
-- Minimal impact on system performance
-- Automatic throttling during high load
-
-## Support
-
-For issues or questions:
-1. Check logs: `C:\SIEM\Logs\`
-2. Run diagnostics: `.\LogCollectionAgent.ps1 -Test`
-3. Review configuration: `config.json`
-4. Contact: [Your team contact info]
-
-## Version History
-
-- **v1.0.0** - Initial release
-  - Basic log collection
-  - Offline queueing
-  - JSON configuration
-
-## License
-
-[Your License Here]
+### 🔹 Partial Cleanup
+```powershell
+Unregister-ScheduledTask -TaskName "FLARELogCollectorAgent" -Confirm:$false
+Remove-Item "C:\FLARE-data" -Recurse -Force
+```
