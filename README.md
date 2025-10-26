@@ -121,7 +121,7 @@ F --> D
 D --> G
 G --> H
 ``` 
-🏁 License
+## 🏁 License
 © 2025 IU - Beaconers
 This module is part of the FLARE Project (Federated Learning for Anomaly Recognition & Explainability).
 All operations are local and compliant with data privacy standards.
