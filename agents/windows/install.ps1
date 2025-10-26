@@ -1,33 +1,29 @@
-# SIEM Agent Installation Script
-# Installs and configures the log collection agent as a Windows service
+# ========================================================
+# FLARE Agent Installation Script
+# Installs and configures the log collection agent as a Scheduled Task.
+# Requires: Running as Administrator.
+# ========================================================
 
 #Requires -RunAsAdministrator
 
 param(
-    [string]$ServerEndpoint = "http://localhost:8000/api/logs/ingest",
-    [string]$InstallPath = "C:\Program Files\SIEM\Agent",
+    [string]$InstallPath = "C:\Program Files\FLARE\Agent",
     [switch]$Uninstall
 )
 
-$ServiceName = "SIEMLogAgent"
-$ServiceDisplayName = "SIEM Log Collection Agent"
-$ServiceDescription = "Collects security logs and sends to SIEM backend"
+$ServiceName = "FLARELogCollectorAgent"
+$ServiceDisplayName = "FLARE Log Collection Agent"
+$ServiceDescription = "Collects and displays Windows Event Logs"
 
-Write-Host "`n=== SIEM Agent Installation ===" -ForegroundColor Cyan
+Write-Host "`n=== FLARE Agent Installation ===" -ForegroundColor Cyan
 
 if ($Uninstall) {
     Write-Host "`nUninstalling agent..." -ForegroundColor Yellow
     
-    # Stop service
-    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-    if ($service) {
-        if ($service.Status -eq 'Running') {
-            Write-Host "Stopping service..." -ForegroundColor Yellow
-            Stop-Service -Name $ServiceName -Force
-        }
-        
-        Write-Host "Removing service..." -ForegroundColor Yellow
-        sc.exe delete $ServiceName
+    # Remove scheduled task
+    if (Get-ScheduledTask -TaskName $ServiceName -ErrorAction SilentlyContinue) {
+        Write-Host "Removing scheduled task..." -ForegroundColor Yellow
+        Unregister-ScheduledTask -TaskName $ServiceName -Confirm:$false
     }
     
     # Remove installation directory
@@ -37,9 +33,9 @@ if ($Uninstall) {
     }
     
     # Remove data directories
-    if (Test-Path "C:\SIEM") {
-        Write-Host "Removing data directories..." -ForegroundColor Yellow
-        Remove-Item -Path "C:\SIEM" -Recurse -Force
+    if (Test-Path "C:\FLARE-data") {
+        Write-Host "Removing FLARE data directory (C:\FLARE-data)..." -ForegroundColor Yellow
+        Remove-Item -Path "C:\FLARE-data" -Recurse -Force
     }
     
     Write-Host "`n✓ Agent uninstalled successfully!" -ForegroundColor Green
@@ -47,15 +43,15 @@ if ($Uninstall) {
 }
 
 # Check if already installed
-$existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if ($existingService) {
-    Write-Host "`nAgent is already installed!" -ForegroundColor Yellow
+$existingTask = Get-ScheduledTask -TaskName $ServiceName -ErrorAction SilentlyContinue
+if ($existingTask) {
+    Write-Host "`nAgent is already installed (Scheduled Task exists)!" -ForegroundColor Yellow
     Write-Host "To reinstall, first uninstall: .\install.ps1 -Uninstall" -ForegroundColor Yellow
     exit 1
 }
 
 # Create installation directory
-Write-Host "`n[1/6] Creating installation directory..." -ForegroundColor Cyan
+Write-Host "`n[1/5] Creating installation directory..." -ForegroundColor Cyan
 if (-not (Test-Path $InstallPath)) {
     New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
     Write-Host "  ✓ Created: $InstallPath" -ForegroundColor Green
@@ -64,23 +60,15 @@ if (-not (Test-Path $InstallPath)) {
 }
 
 # Copy agent files
-Write-Host "`n[2/6] Copying agent files..." -ForegroundColor Cyan
 $currentDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+Write-Host "`n[2/5] Copying agent files..." -ForegroundColor Cyan
 Copy-Item -Path "$currentDir\LogCollectionAgent.ps1" -Destination "$InstallPath\" -Force
-Copy-Item -Path "$currentDir\config.json" -Destination "$InstallPath\" -Force
 Write-Host "  ✓ Agent files copied" -ForegroundColor Green
 
-# Update config with provided endpoint
-Write-Host "`n[3/6] Configuring agent..." -ForegroundColor Cyan
-$configPath = Join-Path $InstallPath "config.json"
-$config = Get-Content $configPath -Raw | ConvertFrom-Json
-$config.server.endpoint = $ServerEndpoint
-$config | ConvertTo-Json -Depth 10 | Set-Content $configPath
-Write-Host "  ✓ Server endpoint: $ServerEndpoint" -ForegroundColor Green
-
 # Create data directories
-Write-Host "`n[4/6] Creating data directories..." -ForegroundColor Cyan
-$dataDirs = @("C:\SIEM\Queue", "C:\SIEM\Logs")
+Write-Host "`n[3/5] Creating data directories..." -ForegroundColor Cyan
+$dataDirs = @("C:\FLARE-data\Data", "C:\FLARE-data\Logs")
 foreach ($dir in $dataDirs) {
     if (-not (Test-Path $dir)) {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
@@ -89,38 +77,40 @@ foreach ($dir in $dataDirs) {
 }
 
 # Enable required audit policies
-Write-Host "`n[5/6] Enabling audit policies..." -ForegroundColor Cyan
+Write-Host "`n[4/5] Enabling audit policies..." -ForegroundColor Cyan
 try {
-    auditpol /set /subcategory:"Logon" /success:enable /failure:enable | Out-Null
-    auditpol /set /subcategory:"Logoff" /success:enable | Out-Null
-    auditpol /set /subcategory:"Account Lockout" /failure:enable | Out-Null
-    auditpol /set /subcategory:"User Account Management" /success:enable /failure:enable | Out-Null
-    auditpol /set /subcategory:"Security Group Management" /success:enable | Out-Null
-    Write-Host "  ✓ Audit policies enabled" -ForegroundColor Green
+    & auditpol /set /subcategory:"Logon" /success:enable /failure:enable 2>&1 | Out-Null
+    & auditpol /set /subcategory:"Logoff" /success:enable /failure:enable 2>&1 | Out-Null
+    & auditpol /set /subcategory:"User Account Management" /success:enable /failure:enable 2>&1 | Out-Null
+    Write-Host "  ✓ Audit policies configured" -ForegroundColor Green
 } catch {
-    Write-Host "  ! Warning: Could not enable all audit policies" -ForegroundColor Yellow
+    Write-Host "  ℹ Skipping audit policy configuration" -ForegroundColor Yellow
 }
 
-# Create Windows service wrapper script
-Write-Host "`n[6/6] Creating Windows service..." -ForegroundColor Cyan
-$wrapperScript = @"
-`$agentScript = Join-Path "$InstallPath" "LogCollectionAgent.ps1"
-& `$agentScript -Start
-"@
-$wrapperPath = Join-Path $InstallPath "service_wrapper.ps1"
-$wrapperScript | Out-File -FilePath $wrapperPath -Encoding UTF8 -Force
-
-# Install as Windows service using NSSM (Non-Sucking Service Manager)
-# Note: For production, you would install NSSM or use Task Scheduler
-Write-Host "  Note: Service installation requires NSSM or Task Scheduler" -ForegroundColor Yellow
-Write-Host "  For now, agent can be run manually or via Task Scheduler" -ForegroundColor Yellow
-
-# Create a scheduled task instead
+# Create Windows Scheduled Task
+Write-Host "`n[5/5] Creating Windows Scheduled Task ($ServiceName)..." -ForegroundColor Cyan
 $taskAction = New-ScheduledTaskAction -Execute "PowerShell.exe" `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$InstallPath\LogCollectionAgent.ps1`" -Start"
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$InstallPath\LogCollectionAgent.ps1`" -Start"
 
-$taskTrigger = New-ScheduledTaskTrigger -AtStartup
+# Run every 1 minute - using a daily trigger with 1-minute repetition
+$taskTrigger = New-ScheduledTaskTrigger -Daily -At "12:00AM"
+$taskTrigger.Repetition = (New-ScheduledTaskTrigger -Once -At "12:00AM" -RepetitionInterval (New-TimeSpan -Minutes 1)).Repetition
 
 $taskSettings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
-    -DontStopIfGoing
+    -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable
+
+# Run as SYSTEM for elevated privileges
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+Register-ScheduledTask -TaskName $ServiceName -Action $taskAction -Trigger $taskTrigger -Settings $taskSettings -Principal $principal -Description $ServiceDescription -Force | Out-Null
+
+Write-Host "`n✓ Agent installed successfully!" -ForegroundColor Green
+Write-Host "`nNEXT STEPS:" -ForegroundColor Yellow
+Write-Host "1. Test the agent manually: " -NoNewline
+Write-Host ".\LogCollectionAgent.ps1 -Start" -ForegroundColor White
+Write-Host "2. The Scheduled Task will run automatically every 1 minute"
+Write-Host "3. To uninstall: " -NoNewline
+Write-Host ".\install.ps1 -Uninstall" -ForegroundColor White
+Write-Host ""
