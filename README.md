@@ -1,12 +1,12 @@
 # 🔥 FLARE – Federated Learning for Anomaly Recognition & Explainability  
 **by IU - Beaconers**  
 
+FLARE is a next-generation **AI-driven cybersecurity platform** designed to detect, explain, and respond to threats in real time — while preserving data privacy through **Federated Learning**.
 
 [![License](https://img.shields.io/badge/License-Academic-blue.svg)]()  
 [![Status](https://img.shields.io/badge/Status-Stable-green.svg)]()  
----
 
-FLARE is a next-generation **AI-driven cybersecurity platform** designed to detect, explain, and respond to threats in real time — while preserving data privacy through **Federated Learning**.
+---
 
 ### 🌐 **Live Dashboard:**  
 [**FLARE Dashboard (Vercel)**](https://flare-lemon.vercel.app/)  
