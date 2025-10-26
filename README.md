@@ -38,6 +38,46 @@ Existing tools like Splunk are expensive, centralized, and compromise privacy.
 - Real-time threat visualization  
 - Event timelines and severity graphs  
 - Endpoint and data ingestion monitoring  
+---
+
+## 📚 Datasets Used
+
+Our model and simulations are trained and tested using **real-world, research-grade datasets** that closely mimic enterprise-scale cyber environments.
+
+### 🧩 1. CICIDS2017 – Intrusion Detection Dataset  
+**Source:** [Canadian Institute for Cybersecurity (CIC), University of New Brunswick](https://www.kaggle.com/datasets/ericanacletoribeiro/cicids2017-cleaned-and-preprocessed)  
+**Size:** ~1.8 GB (cleaned and preprocessed version)  
+**Type:** Network & System Logs  
+**Description:**  
+CICIDS2017 is one of the most widely recognized datasets in the cybersecurity research community. It contains both **normal traffic and various modern attack patterns** such as DDoS, brute force, port scanning, infiltration, and web attacks.  
+Each record includes over **80 features** capturing detailed flow statistics, timestamps, and labels ideal for **ML-based anomaly detection**.  
+
+**Why FLARE uses it:**  
+Used to train and benchmark our **Network Log** and **System Log** anomaly detection module, forming the base for the hybrid detection model (Rule-Based + ML).
+
+---
+
+### 🛡️ 2. SOC BOTS v3 – Splunk Attack Simulation Dataset  
+**Source:** [Splunk Security Research, Boss of the SOC v3](https://www.splunk.com/en_us/blog/security/botsv3-dataset-released.html)  
+**Size:** ~1.2 GB (Splunk SIEM export files)  
+**Type:** Application & Cloud Logs  
+**Description:**  
+SOC BOTS v3 is a **simulated enterprise SOC dataset** built by Splunk’s security team to train analysts in detecting real-world adversarial behaviors.  
+It contains **Windows Event Logs, Sysmon data, proxy traffic, PowerShell executions, and Azure AD logs**, all mapped to **MITRE ATT&CK tactics**.  
+The dataset mimics a realistic enterprise compromise including lateral movement, persistence, and exfiltration activities.
+
+**Why FLARE uses it:**  
+Used for **Application Log** and **Cloud Log** modules helps validate our explainable detection system on enterprise-grade log sources and federated learning experiments.
+
+---
+
+### 🔍 Why These Datasets?
+| Dataset | Type | Authenticity | Usage in FLARE |
+|----------|------|---------------|----------------|
+| **CICIDS2017** | Network/System | Research-grade (CIC-UNB) | Train anomaly detection model |
+| **SOC BOTS v3** | Application/Cloud | Enterprise-grade (Splunk) | Evaluate hybrid detection & explainability |
+
+Both datasets are **publicly available, peer-recognized, and widely cited** in AI-driven intrusion detection research ensuring **replicability, authenticity, and academic value** for our project.
 
 ---
 
@@ -55,11 +95,10 @@ G[Response Layer: Dashboard & Visualization + Email/SMS Alerts + Automated Actio
 H[Admin Layer: User Management + Policy Configurations]
 
 A --> B
-B  --> C
+B --> C
 C --> D
 D --> E
 E --> F
 F --> D
 D --> G
 G --> H
-
