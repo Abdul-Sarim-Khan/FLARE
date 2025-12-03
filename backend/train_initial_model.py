@@ -2,7 +2,7 @@ import pickle
 import numpy as np
 import os
 
-MODEL_FILE = "global_model.pkl"
+MODEL_FILE = "backend/global_model.pkl"
 
 def simulate_bots_v3_training():
     print("🔥 Loading Splunk BOTS v3 Dataset...")
