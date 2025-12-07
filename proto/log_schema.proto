@@ -1,0 +1,25 @@
+syntax = "proto3";
+package flare;
+message UnifiedLog {
+  string timestamp = 1;
+  string host_id = 2;
+  oneof log_type {
+    SystemEvent system = 3;
+    NetworkFlow network = 4;
+  }
+}
+message SystemEvent {
+  int32 event_id = 1;
+  string user = 2;
+  int32 logon_type = 3;
+  string process_name = 4;
+  string status = 5;
+}
+message NetworkFlow {
+  string source_ip = 1;
+  string dest_ip = 2;
+  int32 dest_port = 3;
+  string protocol = 4;
+  float flow_bytes = 5;
+  string direction = 6;
+}

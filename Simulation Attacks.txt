@@ -1,0 +1,152 @@
+1. RDP Anomaly (The "3 AM Login")
+
+Simulates an unauthorized remote login attempt during unusual hours.
+
+Target: Windows System Logs
+
+[
+{
+"Type": "System",
+"Timestamp": "2025-12-07 03:15:00",
+"EventID": 4624,
+"User": "Hacker_RDP",
+"LogonType": "10",
+"Process": "N/A"
+}
+]
+
+2. Brute Force Attack
+
+Simulates multiple failed login attempts in rapid succession.
+
+Target: Windows System Logs
+
+[
+{ "Type": "System", "Timestamp": "2025-12-07 10:00:01", "EventID": 4625, "User": "Admin", "LogonType": "3", "Process": "N/A" },
+{ "Type": "System", "Timestamp": "2025-12-07 10:00:02", "EventID": 4625, "User": "Admin", "LogonType": "3", "Process": "N/A" },
+{ "Type": "System", "Timestamp": "2025-12-07 10:00:03", "EventID": 4625, "User": "Admin", "LogonType": "3", "Process": "N/A" },
+{ "Type": "System", "Timestamp": "2025-12-07 10:00:04", "EventID": 4625, "User": "Admin", "LogonType": "3", "Process": "N/A" }
+]
+
+3. Privilege Escalation (Special Admin)
+
+Simulates a standard user gaining special administrative privileges.
+
+Target: Windows System Logs
+
+[
+{
+"Type": "System",
+"Timestamp": "2025-12-07 14:30:00",
+"EventID": 4672,
+"User": "Standard_User",
+"LogonType": "0",
+"Process": "N/A"
+}
+]
+
+4. Persistence (Backdoor User Creation)
+
+Simulates the creation of a new user account, often used for maintaining access.
+
+Target: Windows System Logs
+
+[
+{
+"Type": "System",
+"Timestamp": "2025-12-07 15:00:00",
+"EventID": 4720,
+"User": "Evil_Backdoor",
+"LogonType": "0",
+"Process": "N/A"
+}
+]
+
+5. DDoS Attack (High Volume HTTP)
+
+Simulates a massive volume of traffic sent to a single destination port (e.g., Port 80).
+
+Target: Network Logs
+
+[
+{
+"Type": "Network",
+"Timestamp": "2025-12-07 12:00:00",
+"Source": "192.168.1.50",
+"DestIP": "192.168.1.100",
+"DestPort": 80,
+"FlowBytes": 500000.0
+}
+]
+
+6. Data Exfiltration (Large File Upload)
+
+Simulates a large amount of data being sent to a non-standard external port.
+
+Target: Network Logs
+
+[
+{
+"Type": "Network",
+"Timestamp": "2025-12-07 23:45:00",
+"Source": "192.168.1.50",
+"DestIP": "203.0.113.5",
+"DestPort": 4444,
+"FlowBytes": 9999999.0
+}
+]
+
+7. Malware Execution (Process Injection) [not working]
+
+Simulates the execution of a known malicious tool (e.g., Mimikatz).
+
+Target: Windows System Logs
+
+[
+{
+"Type": "System",
+"Timestamp": "2025-12-07 21:00:00",
+"EventID": 4688,
+"User": "Hacker",
+"LogonType": "0",
+"Process": "C:\Temp\mimikatz.exe"
+}
+]
+
+8. Port Scanning (Reconnaissance)
+
+Simulates an attacker rapidly probing different ports on a target machine.
+
+Target: Network Logs
+
+[
+{ "Type": "Network", "Timestamp": "2025-12-07 14:00:01", "Source": "192.168.1.50", "DestIP": "10.0.0.1", "DestPort": 21, "FlowBytes": 64 },
+{ "Type": "Network", "Timestamp": "2025-12-07 14:00:01", "Source": "192.168.1.50", "DestIP": "10.0.0.1", "DestPort": 22, "FlowBytes": 64 },
+{ "Type": "Network", "Timestamp": "2025-12-07 14:00:01", "Source": "192.168.1.50", "DestIP": "10.0.0.1", "DestPort": 23, "FlowBytes": 64 },
+{ "Type": "Network", "Timestamp": "2025-12-07 14:00:01", "Source": "192.168.1.50", "DestIP": "10.0.0.1", "DestPort": 80, "FlowBytes": 64 }
+]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[It might look like "only 8," but you are actually covering the entire Cyber Kill Chain. In the cybersecurity world (and for your Final Year Project), coverage is measured by "Tactics," not just the number of scripts.]

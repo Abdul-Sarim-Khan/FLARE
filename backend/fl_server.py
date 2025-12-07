@@ -1,189 +1,212 @@
 import uvicorn
-from fastapi import FastAPI, Header, HTTPException, Depends
+from fastapi import FastAPI, Header, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
-import logging
-import datetime
-import pickle
-import os
-import socket
-import threading
-import time
-import hmac
-import hashlib
+import logging, datetime, pickle, os, socket, threading, time, hmac, hashlib, struct
+import sys
 
-# === SECURITY CONFIG ===
+# === SCHEMA IMPORT (HARDENED) ===
+HAS_SCHEMA = False
+# Force path for PyInstaller bundled files
+if getattr(sys, 'frozen', False):
+    base_path = sys._MEIPASS
+    sys.path.append(base_path)
+
+try:
+    import log_schema_pb2
+    HAS_SCHEMA = True
+    print("\n✅ [SUCCESS] Schema loaded on Server.")
+except ImportError:
+    print("\n❌ [CRITICAL WARNING] log_schema_pb2.py NOT FOUND.")
+    print("   The server acts as a 'Blind Mailbox' (Stores logs but cannot read/alert).")
+
+# === CONFIGURATION ===
 SECRET_KEY = b"FLARE_ENTERPRISE_SECRET_KEY_2025"
+SELECTED_HOST_IP = "0.0.0.0"
+BEACON_stop_event = threading.Event()
 
-# Logging Setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
 logger = logging.getLogger("FLARE_Server")
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
-app = FastAPI(title="FLARE Master Node (Secure)")
+app = FastAPI(title="FLARE Master Node")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# === NETWORK SELECTION UTILS ===
+# === UTILITIES ===
 def get_local_ip_choices():
-    """Finds all valid network interfaces"""
-    interfaces = []
+    ips = []
     try:
-        # Get all addresses
-        hostname = socket.gethostname()
-        # This is a bit tricky in Python, so we iterate common interfaces
-        # A robust way is to connect to a dummy external IP to see which interface is used,
-        # but here we want to list ALL choices.
-        info = socket.getaddrinfo(hostname, None)
-        seen = set()
-        for item in info:
-            ip = item[4][0]
-            # Filter for IPv4 and skip localhost
-            if "." in ip and ip != "127.0.0.1" and ip not in seen:
-                interfaces.append(ip)
-                seen.add(ip)
-    except:
-        pass
-    
-    # Fallback if detection fails
-    if not interfaces:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            interfaces.append(ip)
-        except:
-            pass
-        finally:
-            s.close()
-            
-    return interfaces
+        s.connect(("8.8.8.8", 80))
+        ips.append(s.getsockname()[0])
+        s.close()
+    except: pass
+    try:
+        hostname = socket.gethostname()
+        for item in socket.getaddrinfo(hostname, None):
+            ip = item[4][0]
+            if "." in ip and not ip.startswith("127.") and ip not in ips: ips.append(ip)
+    except: pass
+    return ips
 
-# GLOBAL VARIABLE FOR SELECTED HOST
-SELECTED_HOST_IP = "0.0.0.0"
-
-# === SECURITY UTILS ===
 def sign_message(message: bytes) -> bytes:
     return hmac.new(SECRET_KEY, message, hashlib.sha256).digest()
 
 async def verify_token(x_auth_token: str = Header(None)):
     if x_auth_token != SECRET_KEY.decode():
-        logger.warning("⛔ Unauthorized access attempt blocked!")
         raise HTTPException(status_code=401, detail="Invalid Auth Token")
 
-# === SECURE BEACON ===
-def broadcast_presence():
-    """Broadcasts on the SPECIFIC interface selected by the user"""
+# === BEACON LOGIC ===
+def broadcast_presence(stop_event):
     udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     udp.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    
-    # Bind to the user-selected IP
     try:
         udp.bind((SELECTED_HOST_IP, 0))
-        logger.info(f"📡 [BEACON] Broadcasting on interface: {SELECTED_HOST_IP}")
+        print(f"\n[BEACON] Started on {SELECTED_HOST_IP}:37020")
     except Exception as e:
-        logger.error(f"Failed to bind beacon to {SELECTED_HOST_IP}: {e}")
+        print(f"[ERROR] Beacon Bind Failed: {e}")
         return
-
-    while True:
+    while not stop_event.is_set():
         try:
             payload = b"FLARE_MASTER"
             signature = sign_message(payload).hex().encode()
-            packet = payload + b"::" + signature
-            udp.sendto(packet, ('<broadcast>', 37020))
+            udp.sendto(payload + b"::" + signature, ('<broadcast>', 37020))
             time.sleep(3)
-        except Exception as e:
-            logger.error(f"Beacon error: {e}")
-            time.sleep(5)
+        except: time.sleep(5)
+    udp.close()
+    print("[BEACON] Stopped.")
 
-# === STANDARD API LOGIC ===
-MODEL_PATH = "global_model.pkl"
-global_model = []
-if os.path.exists(MODEL_PATH):
-    with open(MODEL_PATH, "rb") as f: global_model = pickle.load(f)
-else: print("⚠️ No brain found.")
-
-client_updates = []
-alerts = []
-
+# === API ROUTES ===
 class ModelUpdate(BaseModel):
     client_id: str
     weights: List[float]
     sample_count: int
 
-class Alert(BaseModel):
-    client_id: str
-    severity: str
-    message: str
-    timestamp: Optional[str] = None
-
 @app.post("/api/fl/update", dependencies=[Depends(verify_token)])
 async def receive_update(update: ModelUpdate):
-    logger.info(f"📥 [FL] Verified Update from {update.client_id}")
-    client_updates.append(update)
-    global global_model
-    global_model = update.weights 
+    logger.info(f"[FL] Weights received from {update.client_id}")
     return {"status": "accepted"}
 
-@app.post("/api/alerts", dependencies=[Depends(verify_token)])
-async def receive_alert(alert: Alert):
-    alert.timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-    logger.warning(f"🚨 [ALERT] {alert.message}")
-    alerts.append(alert)
-    return {"status": "logged"}
+@app.post("/api/logs/upload", dependencies=[Depends(verify_token)])
+async def upload_logs(request: Request):
+    """Receives Binary Protobuf Stream and Detects Attacks"""
+    data = await request.body()
+    offset = 0
+    count = 0
+    
+    while offset < len(data):
+        try:
+            # Parse Length-Delimited Protobuf
+            if offset + 4 > len(data): break
+            size = struct.unpack(">I", data[offset:offset+4])[0]
+            offset += 4
+            if offset + size > len(data): break
+            msg = data[offset:offset+size]
+            offset += size
+            
+            if HAS_SCHEMA:
+                log = log_schema_pb2.UnifiedLog()
+                log.ParseFromString(msg)
+                
+                # === 🛡️ DEMO DETECTION LOGIC 🛡️ ===
+                
+                if log.HasField("system"):
+                    # 1. Brute Force
+                    if log.system.event_id == 4625:
+                         logger.warning(f"[!!! AUTH ALERT !!!] Failed Login detected: {log.system.user}")
 
-@app.get("/api/dashboard/stats")
-def get_stats():
-    return {
-        "threats": len(alerts),
-        "incidents": sum(1 for a in alerts if a.severity == 'critical'),
-        "monitored": len(set(u.client_id for u in client_updates)),
-        "eps": 120 + len(client_updates) * 10,
-        "recent_alerts": alerts[-10:]
-    }
+                    # 2. RDP at Night (Poke: Type 10)
+                    if log.system.event_id == 4624 and log.system.logon_type == 10:
+                        logger.critical(f"[!!! RDP ALERT !!!] Unauthorized Remote Access! User: {log.system.user}")
+
+                    # 3. Privilege Escalation
+                    if log.system.event_id == 4672:
+                        logger.critical(f"[!!! PRIVILEGE ALERT !!!] Special Admin Rights Assigned: {log.system.user}")
+                    
+                    # 4. Persistence (Backdoor)
+                    if log.system.event_id == 4720:
+                         logger.critical(f"[!!! BACKDOOR ALERT !!!] New User Account Created: {log.system.user}")
+
+                    # 7. Malware Execution (NEW)
+                    if log.system.event_id == 4688:
+                        bad_procs = ["mimikatz", "powershell", "ncat", "metasploit"]
+                        proc_name = log.system.process_name.lower()
+                        if any(bad in proc_name for bad in bad_procs):
+                            logger.critical(f"[!!! MALWARE ALERT !!!] Malicious Process Detected: {log.system.process_name}")
+
+                if log.HasField("network"):
+                    # 5. DDoS / High Volume
+                    if log.network.flow_bytes > 10000:
+                        logger.critical(f"[!!! DDoS ALERT !!!] High Traffic Volume! {log.network.flow_bytes} bytes -> Port {log.network.dest_port}")
+
+                    # 6. Data Exfiltration
+                    if log.network.dest_port == 4444:
+                        logger.critical(f"[!!! EXFIL ALERT !!!] Suspicious Data Upload to Port 4444!")
+
+                    # 8. Port Scanning (NEW)
+                    if log.network.dest_port in [21, 22, 23] and log.network.flow_bytes < 1000:
+                        logger.warning(f"[!!! SCAN ALERT !!!] Port Scanning Activity on Port {log.network.dest_port}")
+
+            count += 1
+        except: break
+        
+    logger.info(f"[LOGS] Received {count} Protobuf events")
+    return {"count": count}
+
+# === SERVER MANAGEMENT ===
+def start_beacon_thread():
+    global BEACON_stop_event
+    BEACON_stop_event.clear()
+    t = threading.Thread(target=broadcast_presence, args=(BEACON_stop_event,), daemon=True)
+    t.start()
+
+def restart_beacon():
+    global BEACON_stop_event, SELECTED_HOST_IP
+    print("\n[INFO] Restarting Beacon...")
+    BEACON_stop_event.set()
+    time.sleep(1)
+    ips = get_local_ip_choices()
+    if ips:
+        print("\nAvailable Interfaces:")
+        for i, ip in enumerate(ips): print(f" [{i+1}] {ip}")
+        try: 
+            choice = input("Choice: ")
+            if choice.strip(): SELECTED_HOST_IP = ips[int(choice) - 1]
+        except: pass
+    start_beacon_thread()
+
+def run_api_server():
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="critical")
 
 def main():
     global SELECTED_HOST_IP
-    
-    print("\n🔥 FLARE MASTER NODE INITIALIZATION 🔥")
-    print("---------------------------------------")
-    print("Please select the Network Interface to broadcast on:")
-    
+    print("\n[START] FLARE SERVER MASTER NODE")
     ips = get_local_ip_choices()
-    if not ips:
-        print("❌ No network interfaces found! Check your connection.")
-        return
-
-    for i, ip in enumerate(ips):
-        print(f" [{i+1}] {ip}")
+    if ips:
+        print("Select Interface:")
+        for i, ip in enumerate(ips): print(f" [{i+1}] {ip}")
+        try: 
+            choice = input("Choice: ")
+            if choice.strip(): SELECTED_HOST_IP = ips[int(choice) - 1]
+            else: SELECTED_HOST_IP = ips[0]
+        except: SELECTED_HOST_IP = ips[0]
     
-    print("---------------------------------------")
+    threading.Thread(target=run_api_server, daemon=True).start()
+    start_beacon_thread()
     
-    choice = input("Enter number (default 1): ")
-    try:
-        idx = int(choice) - 1
-        if 0 <= idx < len(ips):
-            SELECTED_HOST_IP = ips[idx]
-        else:
-            SELECTED_HOST_IP = ips[0]
-    except:
-        SELECTED_HOST_IP = ips[0]
-
-    print(f"\n✅ Selected Interface: {SELECTED_HOST_IP}")
-    print("🚀 Starting Server & Beacon...")
+    print("\n[SUCCESS] Server is RUNNING.")
+    print("   [COMMANDS] 'b' -> Broadcast Again, 'q' -> Quit")
     
-    # Start Beacon in background AFTER selection
-    threading.Thread(target=broadcast_presence, daemon=True).start()
-    
-    # Start API Server on ALL interfaces (0.0.0.0) so it's reachable
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    while True:
+        try:
+            cmd = input("\nflare-master> ").strip().lower()
+            if cmd == 'b': restart_beacon()
+            elif cmd == 'q': 
+                BEACON_stop_event.set()
+                sys.exit(0)
+        except KeyboardInterrupt:
+            sys.exit(0)
 
 if __name__ == "__main__":
     main()
