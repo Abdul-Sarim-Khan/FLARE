@@ -445,16 +445,6 @@ All operations are local and compliant with data privacy standards.
 
 ---
 
-## 📞 Contact & Support
-
-For inquiries, collaboration opportunities, or technical support:
-
-- **GitHub Repository**: [FLARE Project](https://github.com/yourusername/flare)
-- **Live Dashboard**: [FLARE Dashboard](https://flare-lemon.vercel.app/)
-- **Demo Video**: [YouTube](https://youtu.be/iII7gCDTWcQ?si=i2nLJWpmDu9TfDLP)
-
----
-
 **The Intelligent Shield for Pakistan's SMEs** 🛡️
 
 *Empowering Your Digital Future*
