@@ -3,6 +3,9 @@
 
 FLARE is a next-generation **AI-driven cybersecurity platform** designed to detect, explain, and respond to threats in real time – while preserving data privacy through **Federated Learning**.
 
+**The Intelligent Shield for Pakistan's SMEs** 🛡️
+*Empowering Your Digital Future*
+
 [![License](https://img.shields.io/badge/License-Academic-blue.svg)]()  
 [![Status](https://img.shields.io/badge/Status-Stable-green.svg)]()  
 
@@ -442,9 +445,3 @@ This module is part of the FLARE Project (Federated Learning for Anomaly Recogni
 All operations are local and compliant with data privacy standards.
 
 **Academic Use Only** – This project is developed as part of a Final Year Project at Iqra University.
-
----
-
-**The Intelligent Shield for Pakistan's SMEs** 🛡️
-
-*Empowering Your Digital Future*
