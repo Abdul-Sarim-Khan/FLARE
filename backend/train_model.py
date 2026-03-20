@@ -357,7 +357,7 @@ FEATURE_NAMES = [
     "feat_10", "feat_11", "feat_12", "feat_13", "feat_14",
     "feat_15", "feat_16", "feat_17"
 ]
-# Per-type interpretation (from fl_client_v2.py comments)
+# Per-type interpretation (from fl_client.py comments)
 NET_NAMES  = ["type_id","dest_port","port_risk","hour","log_flow_bytes",
               "flow_dur","fwd_pkts","bwd_pkts","pkt_len_mean",
               "fin_flag","psh_flag","ack_flag","proc_risk","local_port",

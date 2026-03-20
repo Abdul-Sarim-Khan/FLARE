@@ -34,7 +34,7 @@ if ($Uninstall) {
 }
 
 if ($Install) {
-    Write-Host "Installing FLARE Agent v2..."
+    Write-Host "Installing FLARE Agent..."
 
     if (-not (Test-Path $InstallPath)) { New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null }
     if (-not (Test-Path $LogsDir))     { New-Item -ItemType Directory -Path $LogsDir     -Force | Out-Null }
@@ -43,11 +43,11 @@ if ($Install) {
 
     Write-Host "Directories created."
 
-    if (Test-Path "$currentDir\LogCollectionAgent_v2.ps1") {
-        Copy-Item "$currentDir\LogCollectionAgent_v2.ps1" "$InstallPath\" -Force
-        Write-Host "Copied LogCollectionAgent_v2.ps1"
+    if (Test-Path "$currentDir\LogCollectionAgent.ps1") {
+        Copy-Item "$currentDir\LogCollectionAgent.ps1" "$InstallPath\" -Force
+        Write-Host "Copied LogCollectionAgent.ps1"
     } else {
-        Write-Host "WARNING: LogCollectionAgent_v2.ps1 not found"
+        Write-Host "WARNING: LogCollectionAgent.ps1 not found"
     }
 
     if (Test-Path "$currentDir\fl_client.exe") {
@@ -70,13 +70,13 @@ if ($Install) {
     New-NetFirewallRule -DisplayName "FLARE Client Out" -Direction Outbound -Program "$InstallPath\fl_client.exe" -Action Allow -ErrorAction SilentlyContinue | Out-Null
     Write-Host "Firewall rules added."
 
-    auditpol /set /subcategory:"Logon"              /success:enable /failure:enable | Out-Null
-    auditpol /set /subcategory:"Process Creation"   /success:enable /failure:enable | Out-Null
-    auditpol /set /subcategory:"Privilege Use"      /success:enable /failure:enable | Out-Null
-    auditpol /set /subcategory:"Account Management" /success:enable /failure:enable | Out-Null
+    auditpol /set /category:"Logon/Logoff"          /success:enable /failure:enable 2>$null | Out-Null
+    auditpol /set /category:"Detailed Tracking"     /success:enable /failure:enable 2>$null | Out-Null
+    auditpol /set /category:"Privilege Use"         /success:enable /failure:enable 2>$null | Out-Null
+    auditpol /set /category:"Account Management"    /success:enable /failure:enable 2>$null | Out-Null
     Write-Host "Audit policies enabled."
 
-    $collectorArg = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$InstallPath\LogCollectionAgent_v2.ps1`""
+    $collectorArg = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$InstallPath\LogCollectionAgent.ps1`""
     $a1 = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument $collectorArg
     $t1 = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1)
     Register-ScheduledTask -TaskName "FLARE_Collector" -Action $a1 -Trigger $t1 -User "SYSTEM" -RunLevel Highest -Force | Out-Null

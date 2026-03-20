@@ -3,7 +3,7 @@ FLARE Dataset Parser – CICIDS2017 (Network)
 =============================================
 Reads the full CICIDS2017 CSV (or the head-10 sample) and produces:
   1. A list of log_schema_pb2.UnifiedLog objects (same format as live agent)
-  2. Feature vectors via fl_client_v2.extract_vector()
+  2. Feature vectors via fl_client.extract_vector()
   3. Attack-type labels for supervised evaluation
 
 This makes the training pipeline identical whether data comes from
@@ -47,12 +47,12 @@ try:
     # reuse extract_vector from the live client
     import importlib.util
     _spec = importlib.util.spec_from_file_location(
-        "fl_client_v2", os.path.join(_HERE, "fl_client_v2.py"))
+        "fl_client", os.path.join(_HERE, "fl_client.py"))
     _fc = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_fc)
     extract_vector = _fc.extract_vector
 except Exception as e:
-    print(f"WARNING: could not import fl_client_v2 ({e}). Vectors will be empty.")
+    print(f"WARNING: could not import fl_client ({e}). Vectors will be empty.")
     extract_vector = lambda log: [0.0] * 18
 
 

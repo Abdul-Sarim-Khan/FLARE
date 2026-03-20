@@ -1,7 +1,7 @@
 param([switch]$Start)
 
 # ============================================================
-# FLARE Log Collection Agent v2
+# FLARE Log Collection Agent
 # Dataset-aligned: CICIDS2017 (network) + BOTSv3 (system)
 # Strategy: collect WIDE now, prune to narrow after RF analysis
 # ============================================================

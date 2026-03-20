@@ -13,6 +13,7 @@ PROCESSING_PATH = r"C:\FLARE-data\Logs\processing.json"
 STORAGE_PATH    = r"C:\FLARE-data\Logs\unified.bin"
 LOG_FILE        = r"C:\FLARE-data\Logs\agent_debug.log"
 MODEL_PATH      = r"C:\FLARE-data\model\global_model.pkl"
+DEDUP_FILE      = r"C:\FLARE-data\Data\dedup_cache.json"
 
 VECTOR_DIM = 18
 
@@ -428,9 +429,19 @@ def main_watchdog():
     HEADERS    = {"X-Auth-Token": SECRET_KEY.decode()}
     alert_queue = []
 
-    # Dedup cache: same threat same source won't re-fire for 5 min
-    _seen   = {}
+    # Dedup cache: persisted to disk so restarts don't re-fire old alerts
     COOLDOWN = 300
+    _seen = {}
+    try:
+        if os.path.exists(DEDUP_FILE):
+            raw = json.load(open(DEDUP_FILE))
+            now = time.time()
+            # Only load entries that are still within cooldown window
+            _seen = {k: v for k, v in raw.items() if now - v < COOLDOWN}
+            logging.info(f"[DEDUP] Loaded {len(_seen)} cached entries")
+    except Exception as e:
+        logging.warning(f"[DEDUP] Cache load failed: {e}")
+        _seen = {}
 
     def _key(threat_type, log):
         try:
@@ -451,8 +462,15 @@ def main_watchdog():
         if now - _seen.get(k, 0) < COOLDOWN:
             return True
         _seen[k] = now
-        for old in [x for x,t in _seen.items() if now - t > COOLDOWN*2]:
-            del _seen[old]
+        # Prune expired entries
+        for old_k in [x for x, t in list(_seen.items()) if now - t > COOLDOWN * 2]:
+            del _seen[old_k]
+        # Persist to disk so restarts don't re-send old alerts
+        try:
+            os.makedirs(os.path.dirname(DEDUP_FILE), exist_ok=True)
+            json.dump(_seen, open(DEDUP_FILE, 'w'))
+        except Exception:
+            pass
         return False
 
     fl_tick = 0
