@@ -1,0 +1,473 @@
+"Account_Domain","Account_Name",ComputerName,"Creator_Process_ID","Creator_Process_Name",EventCode,EventType,"Exit_Status","Handle_ID",Keywords,LogName,"Logon_ID","Mandatory_Label",Message,"New_Process_ID","New_Process_Name","New_Security_Descriptor","Object_Name","Object_Server","Object_Type",OpCode,"Original_Security_Descriptor",Privileges,"Process_Command_Line","Process_ID","Process_Name",RecordNumber,"Security_ID",Server,"Service_Name",SourceName,TaskCategory,"Token_Elevation_Type",Type,"_raw","_time",eventtype,host,index,linecount,punct,source,sourcetype,"splunk_server","splunk_server_group",tag,"tag::eventtype"
+WORKGROUP,"BGIST-L$","BGIST-L.froth.ly",,,4689,0,0x0,,"Audit Success",Security,0x3E7,,"A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0xad8
+	Process Name:	C:\Windows\System32\cmd.exe
+	Exit Status:	0x0",,,,,,,Info,,,,0xad8,"C:\Windows\System32\cmd.exe",298944,"NT AUTHORITY\SYSTEM",,,"Microsoft Windows security auditing.","Process Termination",,Information,"08/20/2018 03:18:00 AM
+LogName=Security
+SourceName=Microsoft Windows security auditing.
+EventCode=4689
+EventType=0
+Type=Information
+ComputerName=BGIST-L.froth.ly
+TaskCategory=Process Termination
+OpCode=Info
+RecordNumber=298944
+Keywords=Audit Success
+Message=A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0xad8
+	Process Name:	C:\Windows\System32\cmd.exe
+	Exit Status:	0x0","2018-08-20T20:18:00.000+0500",,"BGIST-L",botsv3,23,"//_::_\r=\r=___.\r=\r=\r=\r=-..\r=_\r=\r=\r=_\r=___.\r\r\r\r:\r\rt_","WinEventLog:Security","WinEventLog:Security",farhan,,,
+WORKGROUP,"BGIST-L$","BGIST-L.froth.ly",,,4689,0,0x0,,"Audit Success",Security,0x3E7,,"A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0x1534
+	Process Name:	C:\Windows\System32\cmd.exe
+	Exit Status:	0x0",,,,,,,Info,,,,0x1534,"C:\Windows\System32\cmd.exe",298942,"NT AUTHORITY\SYSTEM",,,"Microsoft Windows security auditing.","Process Termination",,Information,"08/20/2018 03:18:00 AM
+LogName=Security
+SourceName=Microsoft Windows security auditing.
+EventCode=4689
+EventType=0
+Type=Information
+ComputerName=BGIST-L.froth.ly
+TaskCategory=Process Termination
+OpCode=Info
+RecordNumber=298942
+Keywords=Audit Success
+Message=A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0x1534
+	Process Name:	C:\Windows\System32\cmd.exe
+	Exit Status:	0x0","2018-08-20T20:18:00.000+0500",,"BGIST-L",botsv3,23,"//_::_\r=\r=___.\r=\r=\r=\r=-..\r=_\r=\r=\r=_\r=___.\r\r\r\r:\r\rt_","WinEventLog:Security","WinEventLog:Security",farhan,,,
+WORKGROUP,"BGIST-L$","BGIST-L.froth.ly",,,4689,0,0x0,,"Audit Success",Security,0x3E7,,"A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0x185c
+	Process Name:	C:\Windows\System32\findstr.exe
+	Exit Status:	0x0",,,,,,,Info,,,,0x185c,"C:\Windows\System32\findstr.exe",298941,"NT AUTHORITY\SYSTEM",,,"Microsoft Windows security auditing.","Process Termination",,Information,"08/20/2018 03:18:00 AM
+LogName=Security
+SourceName=Microsoft Windows security auditing.
+EventCode=4689
+EventType=0
+Type=Information
+ComputerName=BGIST-L.froth.ly
+TaskCategory=Process Termination
+OpCode=Info
+RecordNumber=298941
+Keywords=Audit Success
+Message=A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0x185c
+	Process Name:	C:\Windows\System32\findstr.exe
+	Exit Status:	0x0","2018-08-20T20:18:00.000+0500",,"BGIST-L",botsv3,23,"//_::_\r=\r=___.\r=\r=\r=\r=-..\r=_\r=\r=\r=_\r=___.\r\r\r\r:\r\rt_","WinEventLog:Security","WinEventLog:Security",farhan,,,
+WORKGROUP,"BGIST-L$","BGIST-L.froth.ly",,,4689,0,0x0,,"Audit Success",Security,0x3E7,,"A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0x2c4
+	Process Name:	C:\Windows\System32\NETSTAT.EXE
+	Exit Status:	0x0",,,,,,,Info,,,,0x2c4,"C:\Windows\System32\NETSTAT.EXE",298940,"NT AUTHORITY\SYSTEM",,,"Microsoft Windows security auditing.","Process Termination",,Information,"08/20/2018 03:18:00 AM
+LogName=Security
+SourceName=Microsoft Windows security auditing.
+EventCode=4689
+EventType=0
+Type=Information
+ComputerName=BGIST-L.froth.ly
+TaskCategory=Process Termination
+OpCode=Info
+RecordNumber=298940
+Keywords=Audit Success
+Message=A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0x2c4
+	Process Name:	C:\Windows\System32\NETSTAT.EXE
+	Exit Status:	0x0","2018-08-20T20:18:00.000+0500",,"BGIST-L",botsv3,23,"//_::_\r=\r=___.\r=\r=\r=\r=-..\r=_\r=\r=\r=_\r=___.\r\r\r\r:\r\rt_","WinEventLog:Security","WinEventLog:Security",farhan,,,
+"WORKGROUP
+-","BGIST-L$
+-","BGIST-L.froth.ly",0x1534,"C:\Windows\System32\cmd.exe",4688,0,,,"Audit Success",Security,"0x3E7
+0x0","Mandatory Label\System Mandatory Level","A new process has been created.
+
+Creator Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Target Subject:
+	Security ID:		NULL SID
+	Account Name:		-
+	Account Domain:		-
+	Logon ID:		0x0
+
+Process Information:
+	New Process ID:		0x185c
+	New Process Name:	C:\Windows\System32\findstr.exe
+	Token Elevation Type:	%%1936
+	Mandatory Label:		Mandatory Label\System Mandatory Level
+	Creator Process ID:	0x1534
+	Creator Process Name:	C:\Windows\System32\cmd.exe
+	Process Command Line:	findstr  /r ""LISTENING""
+
+Token Elevation Type indicates the type of token that was assigned to the new process in accordance with User Account Control policy.
+
+Type 1 is a full token with no privileges removed or groups disabled.  A full token is only used if User Account Control is disabled or if the user is the built-in Administrator account or a service account.
+
+Type 2 is an elevated token with no privileges removed or groups disabled.  An elevated token is used when User Account Control is enabled and the user chooses to start the program using Run as administrator.  An elevated token is also used when an application is configured to always require administrative privilege or to always require maximum privilege, and the user is a member of the Administrators group.
+
+Type 3 is a limited token with administrative privileges removed and administrative groups disabled.  The limited token is used when User Account Control is enabled, the application does not require administrative privilege, and the user does not choose to start the program using Run as administrator.",0x185c,"C:\Windows\System32\findstr.exe",,,,,Info,,,"findstr  /r ""LISTENING""",,,298939,"NT AUTHORITY\SYSTEM
+NULL SID",,,"Microsoft Windows security auditing.","Process Creation","%%1936",Information,"08/20/2018 03:17:59 AM
+LogName=Security
+SourceName=Microsoft Windows security auditing.
+EventCode=4688
+EventType=0
+Type=Information
+ComputerName=BGIST-L.froth.ly
+TaskCategory=Process Creation
+OpCode=Info
+RecordNumber=298939
+Keywords=Audit Success
+Message=A new process has been created.
+
+Creator Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Target Subject:
+	Security ID:		NULL SID
+	Account Name:		-
+	Account Domain:		-
+	Logon ID:		0x0
+
+Process Information:
+	New Process ID:		0x185c
+	New Process Name:	C:\Windows\System32\findstr.exe
+	Token Elevation Type:	%%1936
+	Mandatory Label:		Mandatory Label\System Mandatory Level
+	Creator Process ID:	0x1534
+	Creator Process Name:	C:\Windows\System32\cmd.exe
+	Process Command Line:	findstr  /r ""LISTENING""
+
+Token Elevation Type indicates the type of token that was assigned to the new process in accordance with User Account Control policy.
+
+Type 1 is a full token with no privileges removed or groups disabled.  A full token is only used if User Account Control is disabled or if the user is the built-in Administrator account or a service account.
+
+Type 2 is an elevated token with no privileges removed or groups disabled.  An elevated token is used when User Account Control is enabled and the user chooses to start the program using Run as administrator.  An elevated token is also used when an application is configured to always require administrative privilege or to always require maximum privilege, and the user is a member of the Administrators group.
+
+Type 3 is a limited token with administrative privileges removed and administrative groups disabled.  The limited token is used when User Account Control is enabled, the application does not require administrative privilege, and the user does not choose to start the program using Run as administrator.","2018-08-20T20:17:59.000+0500",,"BGIST-L",botsv3,41,"//_::_\r=\r=___.\r=\r=\r=\r=-..\r=_\r=\r=\r=_\r=_____.\r\r\r\r_:\r","WinEventLog:Security","WinEventLog:Security",farhan,,,
+"WORKGROUP
+-","BGIST-L$
+-","BGIST-L.froth.ly",0x1534,"C:\Windows\System32\cmd.exe",4688,0,,,"Audit Success",Security,"0x3E7
+0x0","Mandatory Label\System Mandatory Level","A new process has been created.
+
+Creator Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Target Subject:
+	Security ID:		NULL SID
+	Account Name:		-
+	Account Domain:		-
+	Logon ID:		0x0
+
+Process Information:
+	New Process ID:		0x2c4
+	New Process Name:	C:\Windows\System32\NETSTAT.EXE
+	Token Elevation Type:	%%1936
+	Mandatory Label:		Mandatory Label\System Mandatory Level
+	Creator Process ID:	0x1534
+	Creator Process Name:	C:\Windows\System32\cmd.exe
+	Process Command Line:	netstat  -nao 
+
+Token Elevation Type indicates the type of token that was assigned to the new process in accordance with User Account Control policy.
+
+Type 1 is a full token with no privileges removed or groups disabled.  A full token is only used if User Account Control is disabled or if the user is the built-in Administrator account or a service account.
+
+Type 2 is an elevated token with no privileges removed or groups disabled.  An elevated token is used when User Account Control is enabled and the user chooses to start the program using Run as administrator.  An elevated token is also used when an application is configured to always require administrative privilege or to always require maximum privilege, and the user is a member of the Administrators group.
+
+Type 3 is a limited token with administrative privileges removed and administrative groups disabled.  The limited token is used when User Account Control is enabled, the application does not require administrative privilege, and the user does not choose to start the program using Run as administrator.",0x2c4,"C:\Windows\System32\NETSTAT.EXE",,,,,Info,,,"netstat  -nao",,,298938,"NT AUTHORITY\SYSTEM
+NULL SID",,,"Microsoft Windows security auditing.","Process Creation","%%1936",Information,"08/20/2018 03:17:59 AM
+LogName=Security
+SourceName=Microsoft Windows security auditing.
+EventCode=4688
+EventType=0
+Type=Information
+ComputerName=BGIST-L.froth.ly
+TaskCategory=Process Creation
+OpCode=Info
+RecordNumber=298938
+Keywords=Audit Success
+Message=A new process has been created.
+
+Creator Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Target Subject:
+	Security ID:		NULL SID
+	Account Name:		-
+	Account Domain:		-
+	Logon ID:		0x0
+
+Process Information:
+	New Process ID:		0x2c4
+	New Process Name:	C:\Windows\System32\NETSTAT.EXE
+	Token Elevation Type:	%%1936
+	Mandatory Label:		Mandatory Label\System Mandatory Level
+	Creator Process ID:	0x1534
+	Creator Process Name:	C:\Windows\System32\cmd.exe
+	Process Command Line:	netstat  -nao 
+
+Token Elevation Type indicates the type of token that was assigned to the new process in accordance with User Account Control policy.
+
+Type 1 is a full token with no privileges removed or groups disabled.  A full token is only used if User Account Control is disabled or if the user is the built-in Administrator account or a service account.
+
+Type 2 is an elevated token with no privileges removed or groups disabled.  An elevated token is used when User Account Control is enabled and the user chooses to start the program using Run as administrator.  An elevated token is also used when an application is configured to always require administrative privilege or to always require maximum privilege, and the user is a member of the Administrators group.
+
+Type 3 is a limited token with administrative privileges removed and administrative groups disabled.  The limited token is used when User Account Control is enabled, the application does not require administrative privilege, and the user does not choose to start the program using Run as administrator.","2018-08-20T20:17:59.000+0500",,"BGIST-L",botsv3,41,"//_::_\r=\r=___.\r=\r=\r=\r=-..\r=_\r=\r=\r=_\r=_____.\r\r\r\r_:\r","WinEventLog:Security","WinEventLog:Security",farhan,,,
+"WORKGROUP
+-","BGIST-L$
+-","BGIST-L.froth.ly",0xad8,"C:\Windows\System32\cmd.exe",4688,0,,,"Audit Success",Security,"0x3E7
+0x0","Mandatory Label\System Mandatory Level","A new process has been created.
+
+Creator Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Target Subject:
+	Security ID:		NULL SID
+	Account Name:		-
+	Account Domain:		-
+	Logon ID:		0x0
+
+Process Information:
+	New Process ID:		0x1534
+	New Process Name:	C:\Windows\System32\cmd.exe
+	Token Elevation Type:	%%1936
+	Mandatory Label:		Mandatory Label\System Mandatory Level
+	Creator Process ID:	0xad8
+	Creator Process Name:	C:\Windows\System32\cmd.exe
+	Process Command Line:	C:\Windows\system32\cmd.exe /c netstat -nao | findstr /r ""LISTENING""
+
+Token Elevation Type indicates the type of token that was assigned to the new process in accordance with User Account Control policy.
+
+Type 1 is a full token with no privileges removed or groups disabled.  A full token is only used if User Account Control is disabled or if the user is the built-in Administrator account or a service account.
+
+Type 2 is an elevated token with no privileges removed or groups disabled.  An elevated token is used when User Account Control is enabled and the user chooses to start the program using Run as administrator.  An elevated token is also used when an application is configured to always require administrative privilege or to always require maximum privilege, and the user is a member of the Administrators group.
+
+Type 3 is a limited token with administrative privileges removed and administrative groups disabled.  The limited token is used when User Account Control is enabled, the application does not require administrative privilege, and the user does not choose to start the program using Run as administrator.",0x1534,"C:\Windows\System32\cmd.exe",,,,,Info,,,"C:\Windows\system32\cmd.exe /c netstat -nao | findstr /r ""LISTENING""",,,298937,"NT AUTHORITY\SYSTEM
+NULL SID",,,"Microsoft Windows security auditing.","Process Creation","%%1936",Information,"08/20/2018 03:17:59 AM
+LogName=Security
+SourceName=Microsoft Windows security auditing.
+EventCode=4688
+EventType=0
+Type=Information
+ComputerName=BGIST-L.froth.ly
+TaskCategory=Process Creation
+OpCode=Info
+RecordNumber=298937
+Keywords=Audit Success
+Message=A new process has been created.
+
+Creator Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Target Subject:
+	Security ID:		NULL SID
+	Account Name:		-
+	Account Domain:		-
+	Logon ID:		0x0
+
+Process Information:
+	New Process ID:		0x1534
+	New Process Name:	C:\Windows\System32\cmd.exe
+	Token Elevation Type:	%%1936
+	Mandatory Label:		Mandatory Label\System Mandatory Level
+	Creator Process ID:	0xad8
+	Creator Process Name:	C:\Windows\System32\cmd.exe
+	Process Command Line:	C:\Windows\system32\cmd.exe /c netstat -nao | findstr /r ""LISTENING""
+
+Token Elevation Type indicates the type of token that was assigned to the new process in accordance with User Account Control policy.
+
+Type 1 is a full token with no privileges removed or groups disabled.  A full token is only used if User Account Control is disabled or if the user is the built-in Administrator account or a service account.
+
+Type 2 is an elevated token with no privileges removed or groups disabled.  An elevated token is used when User Account Control is enabled and the user chooses to start the program using Run as administrator.  An elevated token is also used when an application is configured to always require administrative privilege or to always require maximum privilege, and the user is a member of the Administrators group.
+
+Type 3 is a limited token with administrative privileges removed and administrative groups disabled.  The limited token is used when User Account Control is enabled, the application does not require administrative privilege, and the user does not choose to start the program using Run as administrator.","2018-08-20T20:17:59.000+0500",,"BGIST-L",botsv3,41,"//_::_\r=\r=___.\r=\r=\r=\r=-..\r=_\r=\r=\r=_\r=_____.\r\r\r\r_:\r","WinEventLog:Security","WinEventLog:Security",farhan,,,
+WORKGROUP,"BGIST-L$","BGIST-L.froth.ly",,,4689,0,0x0,,"Audit Success",Security,0x3E7,,"A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0x440
+	Process Name:	C:\Windows\System32\cmd.exe
+	Exit Status:	0x0",,,,,,,Info,,,,0x440,"C:\Windows\System32\cmd.exe",298936,"NT AUTHORITY\SYSTEM",,,"Microsoft Windows security auditing.","Process Termination",,Information,"08/20/2018 03:17:59 AM
+LogName=Security
+SourceName=Microsoft Windows security auditing.
+EventCode=4689
+EventType=0
+Type=Information
+ComputerName=BGIST-L.froth.ly
+TaskCategory=Process Termination
+OpCode=Info
+RecordNumber=298936
+Keywords=Audit Success
+Message=A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0x440
+	Process Name:	C:\Windows\System32\cmd.exe
+	Exit Status:	0x0","2018-08-20T20:17:59.000+0500",,"BGIST-L",botsv3,23,"//_::_\r=\r=___.\r=\r=\r=\r=-..\r=_\r=\r=\r=_\r=___.\r\r\r\r:\r\rt_","WinEventLog:Security","WinEventLog:Security",farhan,,,
+WORKGROUP,"BGIST-L$","BGIST-L.froth.ly",,,4689,0,0x0,,"Audit Success",Security,0x3E7,,"A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0x1390
+	Process Name:	C:\Windows\System32\wbem\WMIC.exe
+	Exit Status:	0x0",,,,,,,Info,,,,0x1390,"C:\Windows\System32\wbem\WMIC.exe",298935,"NT AUTHORITY\SYSTEM",,,"Microsoft Windows security auditing.","Process Termination",,Information,"08/20/2018 03:17:59 AM
+LogName=Security
+SourceName=Microsoft Windows security auditing.
+EventCode=4689
+EventType=0
+Type=Information
+ComputerName=BGIST-L.froth.ly
+TaskCategory=Process Termination
+OpCode=Info
+RecordNumber=298935
+Keywords=Audit Success
+Message=A process has exited.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Process Information:
+	Process ID:	0x1390
+	Process Name:	C:\Windows\System32\wbem\WMIC.exe
+	Exit Status:	0x0","2018-08-20T20:17:59.000+0500",,"BGIST-L",botsv3,23,"//_::_\r=\r=___.\r=\r=\r=\r=-..\r=_\r=\r=\r=_\r=___.\r\r\r\r:\r\rt_","WinEventLog:Security","WinEventLog:Security",farhan,,,
+WORKGROUP,"BGIST-L$","BGIST-L.froth.ly",,,4673,0,,,"Audit Success",Security,0x3E7,,"A privileged service was called.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Service:
+	Server:	NT Local Security Authority / Authentication Service
+	Service Name:	LsaRegisterLogonProcess()
+
+Process:
+	Process ID:	0x284
+	Process Name:	C:\Windows\System32\lsass.exe
+
+Service Request Information:
+	Privileges:		SeTcbPrivilege",,,,,,,Info,,SeTcbPrivilege,,0x284,"C:\Windows\System32\lsass.exe",298934,"NT AUTHORITY\SYSTEM","NT Local Security Authority / Authentication Service","LsaRegisterLogonProcess()","Microsoft Windows security auditing.","Sensitive Privilege Use",,Information,"08/20/2018 03:17:59 AM
+LogName=Security
+SourceName=Microsoft Windows security auditing.
+EventCode=4673
+EventType=0
+Type=Information
+ComputerName=BGIST-L.froth.ly
+TaskCategory=Sensitive Privilege Use
+OpCode=Info
+RecordNumber=298934
+Keywords=Audit Success
+Message=A privileged service was called.
+
+Subject:
+	Security ID:		NT AUTHORITY\SYSTEM
+	Account Name:		BGIST-L$
+	Account Domain:		WORKGROUP
+	Logon ID:		0x3E7
+
+Service:
+	Server:	NT Local Security Authority / Authentication Service
+	Service Name:	LsaRegisterLogonProcess()
+
+Process:
+	Process ID:	0x284
+	Process Name:	C:\Windows\System32\lsass.exe
+
+Service Request Information:
+	Privileges:		SeTcbPrivilege","2018-08-20T20:17:59.000+0500",,"BGIST-L",botsv3,29,"//_::_\r=\r=___.\r=\r=\r=\r=-..\r=__\r=\r=\r=_\r=____.\r\r\r\r:\r\r","WinEventLog:Security","WinEventLog:Security",farhan,,,

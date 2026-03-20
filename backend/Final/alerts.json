@@ -1,0 +1,17 @@
+[
+  {
+    "alert_id": "14c3d134-605d-4516-8d8c-0622bcff02fa",
+    "timestamp": "2026-03-20 03:15:00",
+    "client_id": "FLARE-CLIENT",
+    "client_ip": "192.168.100.234",
+    "severity": 4,
+    "severity_label": "Critical",
+    "threat_type": "RDP_Anomaly",
+    "reason": "RDP login: user=Hacker_RDP at 2026-03-20 03:15:00",
+    "ae_score": 1187860.75,
+    "ae_threshold": 0.25,
+    "rule_matched": true,
+    "rule_name": "Rule_RDP_Anomaly",
+    "source_log_type": "System"
+  }
+]
