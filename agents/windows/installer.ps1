@@ -21,6 +21,16 @@ if ($StartOnly) {
 
 if ($Uninstall) {
     Write-Host "Uninstalling FLARE Agent..."
+Write-Host "Disabling Windows Filtering Platform Auditing..." -ForegroundColor Yellow
+
+# Disable success and failure auditing for network connections
+auditpol /set /subcategory:"Filtering Platform Connection" /success:disable /failure:disable 2>$null
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Windows Filtering Platform Auditing Disabled Successfully."
+} else {
+    Write-Host "Failed to disable auditing (check for Admin privileges)." -ForegroundColor Red
+}
     Unregister-ScheduledTask -TaskName "FLARE_Collector" -Confirm:$false -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName "FLARE_AI_Engine"  -Confirm:$false -ErrorAction SilentlyContinue
     Stop-Process -Name "fl_client" -Force -ErrorAction SilentlyContinue
@@ -65,6 +75,18 @@ if ($Install) {
     } else {
         Write-Host "INFO: global_model.pkl not found - client runs in rule-only mode"
     }
+
+
+Write-Host "Enabling Windows Filtering Platform Auditing..."
+
+auditpol /set /subcategory:"Filtering Platform Connection" /success:enable /failure:enable 2>$null
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Windows Filtering Platform Enabled Successfully."
+} else {
+    Write-Host "Failed to enable Windows Filtering Platform Auditing." -ForegroundColor Red
+}
+
 
     New-NetFirewallRule -DisplayName "FLARE Client In"  -Direction Inbound  -Protocol UDP -LocalPort 37020 -Action Allow -ErrorAction SilentlyContinue | Out-Null
     New-NetFirewallRule -DisplayName "FLARE Client Out" -Direction Outbound -Program "$InstallPath\fl_client.exe" -Action Allow -ErrorAction SilentlyContinue | Out-Null

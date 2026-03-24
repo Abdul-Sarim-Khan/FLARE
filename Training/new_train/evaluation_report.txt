@@ -1,0 +1,42 @@
+FLARE Model Evaluation Report
+==================================================
+Generated  : 2026-03-24 01:46:44
+Train time : 2858.8s
+Datasets   : CICIDS2017=cicids2017_cleaned.csv  BOTSv3=None
+Samples    : 2520751 total  (2095057 normal  425694 anomaly)
+Vector dim : 18
+
+FYP Targets: Accuracy >85%  |  Recall >90%  |  FPR <15%
+
+── Autoencoder ──
+  Accuracy  : 0.9017  ✓
+  Recall    : 0.6641   ✗
+  Precision : 0.7296
+  F1        : 0.6953
+  FPR       : 0.0500    ✓
+  TP=282716 TN=1990304 FP=104753 FN=142978
+
+── LSTM ──
+  Accuracy  : 0.8036  ✗
+  Recall    : 0.0944   ✗
+  Precision : 0.2683
+  F1        : 0.1397
+  FPR       : 0.0523    ✓
+  TP=40199 TN=1985446 FP=109611 FN=385495
+
+── Hybrid (AE+LSTM) ──
+  Accuracy  : 0.8631  ✓
+  Recall    : 0.6760   ✗
+  Precision : 0.5815
+  F1        : 0.6252
+  FPR       : 0.0988    ✓
+  TP=287776 TN=1887989 FP=207068 FN=137918
+
+Federated Learning:
+  Simulated 3 clients × 3 rounds × 30 epochs
+  Algorithm: FedAvg (weighted average of client models)
+
+Models saved:
+  new_train/global_model.pkl
+  new_train/global_model_flweights.pkl
+  new_train/feature_importance.csv
