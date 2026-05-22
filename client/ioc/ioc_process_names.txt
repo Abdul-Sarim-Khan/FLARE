@@ -1,0 +1,113 @@
+# FLARE v0.4 - Known-Bad Process Names IOC List
+# ──────────────────────────────────────────────────────────────────────────────
+# Format:
+#   process.exe             exact match (case-insensitive)
+#   # comment               ignored
+#   blank lines             ignored
+#
+# Match source: Windows Event ID 4688 (Process Creation)
+# Requires audit policy: Audit Process Creation = Success
+# Enable via: auditpol /set /subcategory:"Process Creation" /success:enable
+#
+# TODO LATER: hash of every launched process for stronger matching
+#             (requires Event ID 4688 with ProcessCreationIncludeCmdLine
+#             audit policy + potentially Sysmon for reliable hashing)
+#
+# ──────────────────────────────────────────────────────────────────────────────
+# NOTE: Several of these are dual-use tools (legitimate + attacker use).
+#       Context matters — the rule engine checks parent process and path
+#       alongside the name to reduce false positives.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Credential dumping tools ──────────────────────────────────────────────────
+mimikatz.exe
+mimilib.dll
+mimidrv.sys
+wce.exe                       # Windows Credential Editor
+fgdump.exe
+pwdump.exe
+pwdump7.exe
+procdump.exe                  # Sysinternals — legitimate, heavily abused for LSASS dump
+gsecdump.exe
+cachedump.exe
+
+# ── Post-exploitation frameworks ─────────────────────────────────────────────
+meterpreter.exe
+beacon.exe                    # Cobalt Strike beacon process name
+cobaltstrike.exe
+powershell_empire.exe
+empire.exe
+covenant.exe
+havoc.exe                     # Havoc C2 framework
+brute_ratel.exe               # BRc4
+
+# ── Remote access / RAT tools ────────────────────────────────────────────────
+ncat.exe                      # Nmap netcat — used for reverse shells
+plink.exe                     # PuTTY link — SSH tunnelling abuse
+psexec.exe                    # Sysinternals — legitimate, used for lateral movement
+psexec64.exe
+paexec.exe                    # PAExec — PsExec clone
+remcom.exe                    # Remote command execution tool
+winexe.exe
+wmiexec.exe
+smbexec.exe
+dcomexec.exe
+atexec.exe
+
+# ── Reconnaissance / enumeration tools ───────────────────────────────────────
+bloodhound.exe                # AD enumeration
+sharphound.exe                # BloodHound collector
+sharpview.exe
+adrecon.exe
+pingcastle.exe                # AD security assessment (also used by attackers)
+powerview.ps1                 # PowerView — treated as process name in some loaders
+rubeus.exe                    # Kerberos attack tool
+kerbrute.exe
+kerberoast.exe
+
+# ── Network scanning / exploitation ──────────────────────────────────────────
+nmap.exe                      # Network scanner
+masscan.exe                   # High-speed scanner
+zmap.exe
+nbtscan.exe
+netview.exe
+superscan.exe
+angry_ip_scanner.exe
+advanced_ip_scanner.exe
+metasploit.exe
+msfconsole.exe
+msfvenom.exe
+
+# ── Tunnelling / proxy tools ──────────────────────────────────────────────────
+ngrok.exe                     # Legitimate tunnel — frequently abused for C2
+chisel.exe                    # TCP tunnel over HTTP
+ligolo.exe                    # Tunnelling proxy
+frpc.exe                      # Fast Reverse Proxy client
+frps.exe
+iodine.exe                    # DNS tunnel
+dnscat.exe                    # DNS C2
+dnscrypt-proxy.exe
+
+# ── Ransomware indicators ────────────────────────────────────────────────────
+vssadmin.exe                  # Legitimate — flagged when spawned by non-system processes
+                              # (used to delete shadow copies pre-encryption)
+wbadmin.exe                   # Backup deletion
+bcdedit.exe                   # Boot config — used to disable recovery
+
+# ── Bypass / evasion tools ───────────────────────────────────────────────────
+invoke-obfuscation.ps1        # PS obfuscation framework
+invoke-cradle.ps1
+bypas.exe
+amsibypass.exe
+disableavsvc.exe
+
+# ── Offensive .NET tools (often renamed but base names flagged) ──────────────
+seatbelt.exe                  # Host reconnaissance
+sharpup.exe                   # Privilege escalation checks
+sharpwmi.exe
+sharprdp.exe
+sharpsocks.exe
+sharpchisel.exe
+inveigh.exe                   # LLMNR/NBNS poisoning
+responder.exe                 # Same as above
+inveigh-relay.exe

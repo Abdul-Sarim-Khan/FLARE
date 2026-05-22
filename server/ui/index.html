@@ -1,0 +1,1920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FLARE v0.4 — Security Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ═══ Reset & Base ══════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --surface2: #1c2128;
+      --border:   #30363d;
+      --text:     #e6edf3;
+      --text2:    #8b949e;
+      --blue:     #58a6ff;
+      --green:    #3fb950;
+      --yellow:   #d29922;
+      --orange:   #fb8500;
+      --red:      #f85149;
+      --purple:   #bc8cff;
+      --radius:   8px;
+    }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    button { cursor: pointer; border: none; outline: none; }
+    input, select { outline: none; font-family: inherit; }
+
+    /* ═══ App shell ═════════════════════════════════════════════════════ */
+    #app { display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ═══ Top bar ═══════════════════════════════════════════════════════ */
+    #topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 18px; font-weight: 700; letter-spacing: -0.5px;
+      white-space: nowrap;
+    }
+    .logo .flame { font-size: 22px; }
+    .logo .sub   { font-size: 11px; color: var(--text2); font-weight: 400; margin-top: 2px; }
+    .server-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text2); flex-shrink: 0; }
+    .status-dot.online  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.offline { background: var(--red); }
+    .spacer { flex: 1; }
+    #refresh-info { font-size: 12px; color: var(--text2); white-space: nowrap; }
+    .btn {
+      padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+      background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+      transition: background 0.15s, opacity 0.15s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: var(--border); }
+    .btn.primary { background: var(--blue); color: #000; border-color: var(--blue); }
+    .btn.primary:hover { opacity: 0.85; }
+
+    /* ═══ Config bar ════════════════════════════════════════════════════ */
+    #config-bar {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 6px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text2);
+      flex-wrap: wrap;
+    }
+    #config-bar label { white-space: nowrap; }
+    #config-bar input[type=text],
+    #config-bar input[type=password] {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 3px 8px;
+      color: var(--text);
+      font-size: 12px;
+      width: 220px;
+    }
+    #config-bar input:focus { border-color: var(--blue); }
+    .cfg-divider { width: 1px; height: 18px; background: var(--border); }
+    #auto-refresh-label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+
+    /* ═══ Stat bar ══════════════════════════════════════════════════════ */
+    #statbar {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .stat-item {
+      padding: 10px 22px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 110px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.6px; }
+    .stat-value { font-size: 22px; font-weight: 700; line-height: 1; }
+    .stat-sub   { font-size: 11px; color: var(--text2); }
+    .c-crit { color: var(--red); }
+    .c-high { color: var(--orange); }
+    .c-med  { color: var(--yellow); }
+    .c-low  { color: var(--blue); }
+    .c-ok   { color: var(--green); }
+
+    /* ═══ Nav tabs ══════════════════════════════════════════════════════ */
+    #nav {
+      display: flex;
+      padding: 0 20px;
+      gap: 2px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-tab {
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text2);
+      background: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .nav-tab:hover  { color: var(--text); }
+    .nav-tab.active { color: var(--text); border-bottom-color: var(--blue); }
+
+    /* ═══ Content ═══════════════════════════════════════════════════════ */
+    #content { flex: 1; padding: 20px; overflow-y: auto; }
+    .tab-pane          { display: none; }
+    .tab-pane.active   { display: block; }
+
+    /* ═══ Cards ═════════════════════════════════════════════════════════ */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 14px;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .mt16   { margin-top: 16px; }
+    .row-gap { display: flex; flex-direction: column; gap: 12px; }
+
+    /* ═══ Charts ════════════════════════════════════════════════════════ */
+    .chart-wrap     { position: relative; height: 210px; }
+    .chart-wrap.lg  { height: 270px; }
+
+    /* ═══ Severity pills ════════════════════════════════════════════════ */
+    .sev {
+      display: inline-block;
+      padding: 2px 7px; border-radius: 3px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+      text-transform: uppercase; white-space: nowrap;
+    }
+    .sev-4 { background: rgba(248,81,73,0.18);   color: var(--red);    }
+    .sev-3 { background: rgba(251,133,0,0.18);   color: var(--orange); }
+    .sev-2 { background: rgba(210,153,34,0.18);  color: var(--yellow); }
+    .sev-1 { background: rgba(88,166,255,0.18);  color: var(--blue);   }
+    .sev-0 { background: rgba(139,148,158,0.18); color: var(--text2);  }
+
+    /* ═══ Track pills ═══════════════════════════════════════════════════ */
+    .track {
+      display: inline-block;
+      padding: 2px 7px; border-radius: 3px;
+      font-size: 11px; font-weight: 500; white-space: nowrap;
+    }
+    .track-1 { background: rgba(88,166,255,0.15);  color: var(--blue);  }
+    .track-2 { background: rgba(63,185,80,0.15);   color: var(--green); }
+    .track-0 { background: rgba(139,148,158,0.15); color: var(--text2); }
+
+    /* ═══ Online pills ══════════════════════════════════════════════════ */
+    .pill {
+      display: inline-block;
+      padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .pill-online  { background: rgba(63,185,80,0.15);  color: var(--green); }
+    .pill-offline { background: rgba(248,81,73,0.15);  color: var(--red);   }
+
+    /* ═══ Tables ════════════════════════════════════════════════════════ */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left;
+      padding: 8px 10px;
+      font-size: 11px; font-weight: 600; color: var(--text2);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover td { background: rgba(255,255,255,0.025); }
+
+    /* Alert detail row */
+    tr.detail-row td { padding: 0; }
+    .detail-box {
+      background: var(--surface2);
+      padding: 14px 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .detail-box.full-col { grid-column: 1 / -1; }
+    .dfield label {
+      font-size: 10px; color: var(--text2);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      display: block; margin-bottom: 3px;
+    }
+    .dfield .val { font-size: 13px; color: var(--text); word-break: break-word; }
+    .evidence-pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-family: 'Courier New', Courier, monospace;
+      white-space: pre-wrap;
+      max-height: 150px;
+      overflow-y: auto;
+      color: var(--text2);
+      margin-top: 2px;
+    }
+
+    /* ═══ Alert action buttons ══════════════════════════════════════════ */
+    .alert-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      grid-column: 1 / -1;
+    }
+    .act-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid;
+      cursor: pointer;
+      transition: opacity 0.15s, background 0.2s, color 0.2s, border-color 0.2s;
+      white-space: nowrap;
+      position: relative;
+      min-width: 150px;
+      justify-content: center;
+    }
+    .act-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .act-btn.act-false  { background: rgba(248,81,73,0.1); color: var(--red);    border-color: rgba(248,81,73,0.35); }
+    .act-btn.act-false:hover:not(:disabled)  { background: rgba(248,81,73,0.2); }
+    .act-btn.act-dismiss { background: rgba(63,185,80,0.1); color: var(--green);  border-color: rgba(63,185,80,0.35); }
+    .act-btn.act-dismiss:hover:not(:disabled) { background: rgba(63,185,80,0.2); }
+    .act-btn.act-action  { background: rgba(88,166,255,0.12); color: var(--blue);  border-color: rgba(88,166,255,0.35); }
+    .act-btn.act-action:hover:not(:disabled)  { background: rgba(88,166,255,0.22); }
+    .act-btn.act-done-false   { background: rgba(248,81,73,0.25);  color: var(--red);   border-color: var(--red);   cursor: default; }
+    .act-btn.act-done-dismiss { background: rgba(63,185,80,0.25);  color: var(--green); border-color: var(--green); cursor: default; }
+    .act-btn.act-done-action  { background: rgba(88,166,255,0.25); color: var(--blue);  border-color: var(--blue);  cursor: default; }
+    .act-spinner {
+      display: inline-block; width: 11px; height: 11px;
+      border: 2px solid currentColor; border-top-color: transparent;
+      border-radius: 50%; animation: spin 0.65s linear infinite;
+    }
+    /* Alert row state tints */
+    tr.row-false td  { background: rgba(248,81,73,0.09) !important; transition: background 0.35s; }
+    tr.row-solved td { background: rgba(63,185,80,0.09) !important; transition: background 0.35s; }
+    tr.row-false-hidden, tr.row-false-hidden + tr.detail-row { display: none !important; }
+    .act-msg {
+      display:none; margin-top:12px; padding:11px 14px;
+      border-radius:6px; font-size:13px; line-height:1.55;
+      grid-column: 1 / -1;
+    }
+    /* Isolation modal */
+    #isolate-modal {
+      position:fixed; inset:0; background:rgba(0,0,0,0.78);
+      z-index:10000; display:none;
+      align-items:center; justify-content:center;
+    }
+    .iso-box {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:12px; padding:28px 32px;
+      width:580px; max-width:95vw; max-height:82vh; overflow-y:auto;
+    }
+
+    /* ═══ Filter bar ════════════════════════════════════════════════════ */
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 10px;
+      align-items: center;
+      padding: 0 0 14px;
+    }
+    .filter-bar select,
+    .filter-bar input[type=text] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      color: var(--text);
+      font-size: 13px;
+    }
+    .filter-bar select:hover,
+    .filter-bar input:focus { border-color: var(--blue); }
+    .filter-bar label { font-size: 12px; color: var(--text2); }
+
+    /* ═══ Pagination ════════════════════════════════════════════════════ */
+    .pagination {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-top: 12px;
+      justify-content: flex-end;
+      font-size: 12px;
+      color: var(--text2);
+    }
+    .pagination button {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 12px;
+    }
+    .pagination button:disabled { opacity: 0.35; cursor: default; }
+
+    /* ═══ Client detail panel ═══════════════════════════════════════════ */
+    #client-detail { margin-top: 16px; display: none; }
+    .cstat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .cstat {
+      padding: 10px 14px;
+      background: var(--surface2);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .cstat-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+    .cstat-value { font-size: 18px; font-weight: 700; line-height: 1; }
+    .cstat-value.sm { font-size: 14px; }
+
+    /* ═══ FL panel ══════════════════════════════════════════════════════ */
+    .fl-progress { background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; margin-top: 6px; }
+    .fl-bar { height: 6px; background: var(--blue); border-radius: 4px; transition: width 0.4s ease; }
+    .fl-stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    /* ═══ Misc ══════════════════════════════════════════════════════════ */
+    .mono    { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
+    .truncate { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
+    .empty   { text-align: center; color: var(--text2); padding: 36px 20px; font-size: 13px; }
+    .c-red   { color: var(--red); }
+    .c-green { color: var(--green); }
+    .c-dim   { color: var(--text2); }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid var(--border); border-top-color: var(--blue);
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 20px; right: 20px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 16px;
+      font-size: 13px; color: var(--text);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      opacity: 0; transition: opacity 0.25s; pointer-events: none;
+      z-index: 200; max-width: 320px;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ═══ Responsive ════════════════════════════════════════════════════ */
+    @media (max-width: 960px) {
+      .cstat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 760px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      .grid-3 { grid-template-columns: 1fr 1fr; }
+      .fl-stat-grid { grid-template-columns: 1fr; }
+      .detail-box { grid-template-columns: 1fr; }
+      #content { padding: 12px; }
+    }
+    @media (max-width: 520px) {
+      .grid-3 { grid-template-columns: 1fr; }
+      .cstat-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Top bar ─────────────────────────────────────────────────────── -->
+  <div id="topbar">
+    <div class="logo">
+      <span class="flame">🔥</span>
+      <div>
+        <div>FLARE</div>
+        <div class="sub">v0.4.0</div>
+      </div>
+    </div>
+    <div class="server-status">
+      <div class="status-dot" id="conn-dot"></div>
+      <span id="conn-label">Connecting…</span>
+    </div>
+    <div class="spacer"></div>
+    <span id="refresh-info" class="c-dim">—</span>
+    <button class="btn" onclick="refreshAll()">↻ Refresh</button>
+  </div>
+
+  <!-- ── Config bar ──────────────────────────────────────────────────── -->
+  <div id="config-bar">
+    <label id="auto-refresh-label">
+      <input type="checkbox" id="auto-refresh-toggle" checked onchange="toggleAutoRefresh()">
+      Auto-refresh (15s)
+    </label>
+    <div class="spacer"></div>
+    <button class="btn" onclick="doLogout()">Sign out</button>
+  </div>
+
+  <!-- ── Login overlay ────────────────────────────────────────────────── -->
+  <div id="login-overlay" style="display:none; position:fixed; inset:0; background:rgba(13,17,23,0.97); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:36px 40px; width:340px; max-width:95vw;">
+      <div style="font-size:22px; font-weight:700; margin-bottom:6px;">&#x1F525; FLARE v0.4</div>
+      <div style="font-size:13px; color:var(--text2); margin-bottom:24px;">Sign in to continue</div>
+      <label style="display:block; font-size:12px; color:var(--text2); margin-bottom:4px;">Username</label>
+      <input id="login-user" type="text" autocomplete="username" placeholder="admin"
+        style="width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 12px; color:var(--text); font-size:14px; margin-bottom:14px;"
+        onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+      <label style="display:block; font-size:12px; color:var(--text2); margin-bottom:4px;">Password</label>
+      <input id="login-pass" type="password" autocomplete="current-password" placeholder=""
+        style="width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 12px; color:var(--text); font-size:14px; margin-bottom:8px;"
+        onkeydown="if(event.key==='Enter')doLogin()">
+      <div id="login-error" style="font-size:12px; color:var(--red); min-height:18px; margin-bottom:14px;"></div>
+      <button class="btn primary" style="width:100%; padding:9px;" onclick="doLogin()">Sign in</button>
+    </div>
+  </div>
+
+  <!-- ── Stat bar ────────────────────────────────────────────────────── -->
+  <div id="statbar">
+    <div class="stat-item">
+      <div class="stat-label">Total Alerts</div>
+      <div class="stat-value" id="s-total">—</div>
+      <div class="stat-sub">all time</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Critical 24h</div>
+      <div class="stat-value c-crit" id="s-crit">—</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">High 24h</div>
+      <div class="stat-value c-high" id="s-high">—</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Medium 24h</div>
+      <div class="stat-value c-med" id="s-med">—</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Low 24h</div>
+      <div class="stat-value c-low" id="s-low">—</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Online Clients</div>
+      <div class="stat-value c-ok" id="s-clients">—</div>
+      <div class="stat-sub" id="s-clients-sub">/ — total</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">FL Round</div>
+      <div class="stat-value" id="s-fl-round">—</div>
+      <div class="stat-sub" id="s-fl-ver">network model</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">FL Pending</div>
+      <div class="stat-value" id="s-fl-pending">—</div>
+      <div class="stat-sub" id="s-fl-need">—</div>
+    </div>
+  </div>
+
+  <!-- ── Nav ─────────────────────────────────────────────────────────── -->
+  <div id="nav">
+    <button class="nav-tab active" onclick="switchTab('overview',this)">Overview</button>
+    <button class="nav-tab"        onclick="switchTab('alerts',this)">Alerts</button>
+    <button class="nav-tab"        onclick="switchTab('clients',this)">Clients</button>
+    <button class="nav-tab"        onclick="switchTab('fl',this)">Federated Learning</button>
+  </div>
+
+  <!-- ── Content ─────────────────────────────────────────────────────── -->
+  <div id="content">
+
+    <!-- ══════════ OVERVIEW ══════════ -->
+    <div id="tab-overview" class="tab-pane active">
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Alerts by Severity — last 24 h</div>
+          <div class="chart-wrap"><canvas id="sev-chart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Alerts by Track — last 24 h</div>
+          <div class="chart-wrap"><canvas id="track-chart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card mt16">
+        <div class="card-title">Top Alert Rules — last 24 h</div>
+        <div id="rule-chart-wrap" class="chart-wrap lg"><canvas id="rule-chart"></canvas></div>
+        <div id="rule-empty" class="empty" style="display:none">No rule-based alerts in the last 24 h</div>
+      </div>
+
+      <div class="card mt16">
+        <div class="card-title">Recent Alerts</div>
+        <div id="overview-recent">
+          <div class="empty"><span class="spinner"></span> Loading…</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══════════ ALERTS ══════════ -->
+    <div id="tab-alerts" class="tab-pane">
+      <div class="card">
+
+        <!-- Filters -->
+        <div class="filter-bar">
+          <label>Track:</label>
+          <select id="f-track" onchange="alertOffset=0;fetchAlerts()">
+            <option value="">All</option>
+            <option value="1">Host</option>
+            <option value="2">Network</option>
+          </select>
+
+          <label>Min Severity:</label>
+          <select id="f-severity" onchange="alertOffset=0;fetchAlerts()">
+            <option value="">All</option>
+            <option value="1">Low+</option>
+            <option value="2">Medium+</option>
+            <option value="3">High+</option>
+            <option value="4">Critical only</option>
+          </select>
+
+          <label>Rule ID:</label>
+          <input type="text" id="f-rule" placeholder="e.g. PASS_SPRAY"
+                 style="width:150px" oninput="debounceAlerts()">
+
+          <label>Client:</label>
+          <input type="text" id="f-client-filter" placeholder="client-id"
+                 style="width:150px" oninput="debounceAlerts()">
+
+          <button class="btn" onclick="resetAlertFilters()">Clear</button>
+          <div class="spacer"></div>
+          <button class="btn primary" onclick="exportAlerts()">⬇ Export CSV</button>
+          <div class="cfg-divider"></div>
+          <button class="btn" id="btn-hide-false" onclick="toggleHideFalse()" style="color:var(--red);border-color:rgba(248,81,73,0.4)">🚫 Hide False Alerts</button>
+          <button class="btn" onclick="clearSolved()" style="color:var(--green);border-color:rgba(63,185,80,0.4)">✕ Clear All Solved</button>
+        </div>
+
+        <!-- Table -->
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Client</th>
+                <th>Track</th>
+                <th>Attack Type</th>
+                <th>Rule ID</th>
+                <th>Severity</th>
+                <th>Confidence</th>
+                <th>Events</th>
+              </tr>
+            </thead>
+            <tbody id="alerts-tbody">
+              <tr><td colspan="8" class="empty"><span class="spinner"></span> Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+          <span id="alerts-count" class="c-dim">—</span>
+          <button id="prev-btn" onclick="prevPage()" disabled>‹ Prev</button>
+          <span id="page-info" class="c-dim">—</span>
+          <button id="next-btn" onclick="nextPage()" disabled>Next ›</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════ CLIENTS ══════════ -->
+    <div id="tab-clients" class="tab-pane">
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Client ID</th>
+                <th>IP</th>
+                <th>Version</th>
+                <th>Uptime</th>
+                <th>Host Alerts</th>
+                <th>Net Alerts</th>
+                <th>IOC Matches</th>
+                <th>Rule Hits</th>
+                <th>Last Seen</th>
+              </tr>
+            </thead>
+            <tbody id="clients-tbody">
+              <tr><td colspan="10" class="empty"><span class="spinner"></span> Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Client detail panel (appears on row click) -->
+      <div id="client-detail" class="card">
+        <div class="card-title" id="cd-title">Client Detail</div>
+        <div class="cstat-grid" id="cd-grid"></div>
+        <div class="mt16">
+          <div class="card-title">Model Hashes</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="cstat">
+              <div class="cstat-label">Net Model Hash</div>
+              <div class="mono c-dim" id="cd-net-hash">—</div>
+            </div>
+            <div class="cstat">
+              <div class="cstat-label">Host Model Hash</div>
+              <div class="mono c-dim" id="cd-host-hash">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ FL ══════════ -->
+    <div id="tab-fl" class="tab-pane">
+      <div class="grid-2">
+
+        <div class="card">
+          <div class="card-title">Network FL Model</div>
+          <div id="fl-model-info">
+            <div class="empty"><span class="spinner"></span> Loading…</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Aggregation Status</div>
+          <div id="fl-agg-info">
+            <div class="empty"><span class="spinner"></span> Loading…</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /#content -->
+</div><!-- /#app -->
+
+<!-- Isolation modal -->
+<div id="isolate-modal">
+  <div class="iso-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <div style="font-weight:700;font-size:15px">⚡ Endpoint Isolation — PowerShell</div>
+      <button onclick="document.getElementById('isolate-modal').style.display='none'" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px">Target endpoint: <strong style="color:var(--text)" id="iso-client">—</strong></div>
+    <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Run as Administrator on the FLARE Server — blocks the client remotely</div>
+    <pre id="iso-cmd" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:14px;font-size:12px;color:var(--orange);white-space:pre-wrap;word-break:break-all;margin-bottom:10px"></pre>
+    <div style="background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.35);border-radius:6px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-weight:700;color:var(--red);font-size:12px;margin-bottom:6px">&#9888; PREREQUISITE — Remote PowerShell (WinRM) must be enabled on the target</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.6">If <code style="color:var(--orange)">Invoke-Command</code> fails or WinRM is not active on the client, <strong>do not wait</strong> — take one of these physical actions immediately:</div>
+      <ul style="font-size:12px;color:var(--text);margin:8px 0 0 18px;line-height:1.8">
+        <li><strong>Unplug the ethernet cable</strong> from the affected machine to cut it from the network instantly.</li>
+        <li><strong>Force shutdown</strong> the device: hold the power button for 5 s, or run <code style="color:var(--orange)">shutdown /s /f /t 0 /m \\&lt;hostname&gt;</code> from the server if it is still reachable.</li>
+      </ul>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:18px">Replace <code style="color:var(--orange)">???</code> with the actual client IP if not pre-filled.</div>
+    <div style="display:flex;gap:10px">
+      <button class="btn primary" onclick="_copyIsoCmd()">📋 Copy to Clipboard</button>
+      <button class="btn" onclick="document.getElementById('isolate-modal').style.display='none'">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   FLARE v0.4 Dashboard — client-side JS
+   Authentication is handled via session cookie set by POST /login.
+   All API calls are same-origin — cookies are sent automatically.
+ ══════════════════════════════════════════════════════════════════════════ */
+
+// ── State ──────────────────────────────────────────────────────────────────
+
+let autoRefreshTimer = null;
+let alertOffset     = 0;
+let alertTotal      = 0;
+const ALERT_LIMIT   = 50;
+let _alertDebounce  = null;
+
+// Chart instances
+let sevChart   = null;
+let trackChart = null;
+let ruleChart  = null;
+
+// ── Bootstrap ──────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  initCharts();
+  refreshAll();
+  startAutoRefresh();
+});
+
+// ── Auth: login / logout ───────────────────────────────────────────────────
+
+function showLogin() {
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('login-error').textContent = '';
+  setTimeout(() => document.getElementById('login-user').focus(), 50);
+}
+
+function hideLogin() {
+  document.getElementById('login-overlay').style.display = 'none';
+}
+
+async function doLogin() {
+  const username = document.getElementById('login-user').value.trim();
+  const password = document.getElementById('login-pass').value;
+  document.getElementById('login-error').textContent = '';
+  try {
+    const resp = await fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (resp.ok) {
+      hideLogin();
+      document.getElementById('login-pass').value = '';
+      refreshAll();
+    } else {
+      const data = await resp.json().catch(() => ({}));
+      document.getElementById('login-error').textContent =
+        data.detail || 'Invalid username or password';
+    }
+  } catch (e) {
+    document.getElementById('login-error').textContent = 'Cannot reach server: ' + e.message;
+  }
+}
+
+async function doLogout() {
+  await fetch('/logout', { method: 'POST' }).catch(() => {});
+  showLogin();
+}
+
+// ── Config ─────────────────────────────────────────────────────────────────
+
+function toggleAutoRefresh() {
+  if (document.getElementById('auto-refresh-toggle').checked) {
+    startAutoRefresh();
+    showToast('Auto-refresh enabled');
+  } else {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+    showToast('Auto-refresh paused');
+  }
+}
+
+function startAutoRefresh() {
+  clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(refreshAll, 15000);
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  el.classList.add('active');
+  // Load fresh data for the newly-active tab
+  if (name === 'overview') fetchRecentAlerts();
+  if (name === 'alerts')   { alertOffset = 0; fetchAlerts(); }
+  if (name === 'clients')  fetchClients();
+  if (name === 'fl')       fetchFL();
+}
+
+// ── API helper ─────────────────────────────────────────────────────────────
+
+async function api(path) {
+  const resp = await fetch(path);
+  if (!resp.ok) {
+    if (resp.status === 401) { showLogin(); throw new Error('Not logged in'); }
+    throw new Error('HTTP ' + resp.status);
+  }
+  return resp.json();
+}
+
+// ── Master refresh ─────────────────────────────────────────────────────────
+
+async function refreshAll() {
+  try {
+    const [status, stats] = await Promise.all([
+      api('/api/status'),
+      api('/api/alerts/stats?hours=24'),
+    ]);
+    updateStatBar(status, stats);
+    updateCharts(stats);
+    setConnected(true);
+  } catch(e) {
+    setConnected(false);
+    showToast('⚠ ' + e.message);
+  }
+
+  // Also refresh the active tab's content
+  const active = document.querySelector('.tab-pane.active');
+  if (active) {
+    if (active.id === 'tab-overview') fetchRecentAlerts();
+    if (active.id === 'tab-alerts')   fetchAlerts();
+    if (active.id === 'tab-clients')  fetchClients();
+    if (active.id === 'tab-fl')       fetchFL();
+  }
+
+  document.getElementById('refresh-info').textContent =
+    'Updated ' + new Date().toLocaleTimeString();
+}
+
+function setConnected(ok) {
+  const dot   = document.getElementById('conn-dot');
+  const label = document.getElementById('conn-label');
+  dot.className   = 'status-dot ' + (ok ? 'online' : 'offline');
+  label.textContent = ok ? 'Server Online' : 'Server Unreachable';
+}
+
+// ── Stat bar ───────────────────────────────────────────────────────────────
+
+function updateStatBar(status, stats) {
+  const sev = stats.by_severity || {};
+  setText('s-total',   fmtNum(status.total_alerts));
+  setText('s-crit',    fmtNum(sev[4] || 0));
+  setText('s-high',    fmtNum(sev[3] || 0));
+  setText('s-med',     fmtNum(sev[2] || 0));
+  setText('s-low',     fmtNum(sev[1] || 0));
+  setText('s-clients', fmtNum(status.online_clients));
+  setText('s-clients-sub', '/ ' + fmtNum(status.total_clients) + ' total');
+
+  const fl = status.fl_model;
+  setText('s-fl-round', fl ? fl.round : '—');
+  setText('s-fl-ver',   fl ? 'v' + fl.version : 'no model yet');
+
+  const pending = status.fl_pending_updates || 0;
+  const minCli  = status.fl_min_clients    || 3;
+  setText('s-fl-pending', fmtNum(pending));
+  setText('s-fl-need', 'need ' + Math.max(0, minCli - pending) + ' more');
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────────
+
+function initCharts() {
+  Chart.defaults.color       = '#8b949e';
+  Chart.defaults.borderColor = '#30363d';
+  Chart.defaults.plugins.legend.labels.boxWidth = 12;
+  Chart.defaults.plugins.legend.labels.padding  = 14;
+
+  const base = { responsive: true, maintainAspectRatio: false };
+
+  sevChart = new Chart(document.getElementById('sev-chart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Critical', 'High', 'Medium', 'Low', 'Unknown'],
+      datasets: [{
+        data: [0, 0, 0, 0, 0],
+        backgroundColor: ['#f85149','#fb8500','#d29922','#58a6ff','#30363d'],
+        borderWidth: 0,
+        hoverOffset: 5,
+      }]
+    },
+    options: {
+      ...base,
+      cutout: '68%',
+      plugins: { legend: { position: 'right' } },
+    }
+  });
+
+  trackChart = new Chart(document.getElementById('track-chart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Host', 'Network', 'Unknown'],
+      datasets: [{
+        data: [0, 0, 0],
+        backgroundColor: ['#58a6ff', '#3fb950', '#30363d'],
+        borderWidth: 0,
+        hoverOffset: 5,
+      }]
+    },
+    options: {
+      ...base,
+      cutout: '68%',
+      plugins: { legend: { position: 'right' } },
+    }
+  });
+
+  ruleChart = new Chart(document.getElementById('rule-chart'), {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Alerts',
+        data: [],
+        backgroundColor: '#58a6ff',
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      ...base,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#30363d' }, ticks: { precision: 0 } },
+        y: { grid: { display: false } },
+      },
+    }
+  });
+}
+
+function updateCharts(stats) {
+  const sev = stats.by_severity || {};
+  sevChart.data.datasets[0].data = [sev[4]||0, sev[3]||0, sev[2]||0, sev[1]||0, sev[0]||0];
+  sevChart.update('none');
+
+  const tr = stats.by_track || {};
+  trackChart.data.datasets[0].data = [tr[1]||0, tr[2]||0, tr[0]||0];
+  trackChart.update('none');
+
+  const rules = stats.by_rule_id || [];
+  const rWrap = document.getElementById('rule-chart-wrap');
+  const rEmpty = document.getElementById('rule-empty');
+  if (rules.length === 0) {
+    rWrap.style.display  = 'none';
+    rEmpty.style.display = 'block';
+  } else {
+    rWrap.style.display  = 'block';
+    rEmpty.style.display = 'none';
+    // Increase chart height dynamically based on number of bars
+    rWrap.style.height   = Math.max(200, rules.length * 28) + 'px';
+    ruleChart.data.labels                 = rules.map(r => r.rule_id || '(unset)');
+    ruleChart.data.datasets[0].data       = rules.map(r => r.count);
+    ruleChart.update();
+  }
+}
+
+// ── Overview — recent alerts ───────────────────────────────────────────────
+
+async function fetchRecentAlerts() {
+  const wrap = document.getElementById('overview-recent');
+  try {
+    const data = await api('/api/alerts?limit=10');
+    if (!data.alerts.length) {
+      wrap.innerHTML = '<div class="empty">No alerts yet</div>';
+      return;
+    }
+    wrap.innerHTML = buildAlertsTable(data.alerts);
+  } catch(e) {
+    wrap.innerHTML = '<div class="empty c-red">' + esc(e.message) + '</div>';
+  }
+}
+
+function buildAlertsTable(alerts) {
+  let h = `<div class="tbl-wrap"><table>
+    <thead><tr>
+      <th>Time</th><th>Client</th><th>Track</th><th>Attack Type</th>
+      <th>Rule ID</th><th>Severity</th><th>Confidence</th><th>Events</th>
+    </tr></thead><tbody>`;
+  alerts.forEach(a => { h += '<tr>' + alertCells(a) + '</tr>'; });
+  h += '</tbody></table></div>';
+  return h;
+}
+
+// ── Alerts tab ─────────────────────────────────────────────────────────────
+
+function debounceAlerts() {
+  clearTimeout(_alertDebounce);
+  _alertDebounce = setTimeout(() => { alertOffset = 0; fetchAlerts(); }, 380);
+}
+
+function resetAlertFilters() {
+  document.getElementById('f-track').value         = '';
+  document.getElementById('f-severity').value      = '';
+  document.getElementById('f-rule').value          = '';
+  document.getElementById('f-client-filter').value = '';
+  alertOffset = 0;
+  fetchAlerts();
+}
+
+async function fetchAlerts() {
+  if (document.querySelector('.detail-row')) return; // skip auto-refresh if an accordion is open
+  const track  = document.getElementById('f-track').value;
+  const sev    = document.getElementById('f-severity').value;
+  const rule   = document.getElementById('f-rule').value.trim();
+  const client = document.getElementById('f-client-filter').value.trim();
+
+  let url = `/api/alerts?limit=${ALERT_LIMIT}&offset=${alertOffset}`;
+  if (track)  url += '&track='        + encodeURIComponent(track);
+  if (sev)    url += '&min_severity=' + encodeURIComponent(sev);
+  if (rule)   url += '&rule_id='      + encodeURIComponent(rule);
+  if (client) url += '&client_id='    + encodeURIComponent(client);
+
+  const tbody = document.getElementById('alerts-tbody');
+
+  try {
+    const data = await api(url);
+    alertTotal = data.total;
+
+    if (!data.alerts.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">No alerts match the current filters</td></tr>';
+    } else {
+      tbody.innerHTML = '';
+      data.alerts.forEach(a => {
+        const tr = document.createElement('tr');
+        tr.className = 'clickable';
+        tr.innerHTML = alertCells(a);
+        tr.addEventListener('click', () => toggleDetail(tr, a));
+        tbody.appendChild(tr);
+      });
+    }
+
+    const page  = Math.floor(alertOffset / ALERT_LIMIT) + 1;
+    const pages = Math.max(1, Math.ceil(alertTotal / ALERT_LIMIT));
+    setText('alerts-count', fmtNum(alertTotal) + ' alert' + (alertTotal !== 1 ? 's' : ''));
+    setText('page-info', 'Page ' + page + ' / ' + pages);
+    document.getElementById('prev-btn').disabled = alertOffset === 0;
+    document.getElementById('next-btn').disabled = alertOffset + ALERT_LIMIT >= alertTotal;
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty c-red">' + esc(e.message) + '</td></tr>';
+  }
+}
+
+function prevPage() { alertOffset = Math.max(0, alertOffset - ALERT_LIMIT); fetchAlerts(); }
+function nextPage() { alertOffset += ALERT_LIMIT; fetchAlerts(); }
+
+function alertCells(a) {
+  const conf = (a.confidence != null) ? Math.round(a.confidence * 100) + '%' : '—';
+  return `<td class="c-dim">${fmtTime(a.received_at)}</td>
+          <td><span class="truncate mono">${esc(a.client_id || '—')}</span></td>
+          <td>${trackPill(a.track)}</td>
+          <td>${esc(a.attack_type || '—')}</td>
+          <td class="mono">${esc(a.rule_id || '—')}</td>
+          <td>${sevPill(a.severity)}</td>
+          <td>${conf}</td>
+          <td>${a.event_count || 1}</td>`;
+}
+
+// ── Per-rule recommended actions lookup table ────────────────────────────────
+// Each entry: { steps: string[], isolate: string|null, caution: string|null }
+// isolate = PowerShell/CMD command to isolate the node; caution = warning text.
+const RULE_ACTIONS = {
+  kerberoasting_rc4: {
+    steps: [
+      'Rotate ALL service account passwords immediately — cracked hashes are valid until changed.',
+      'Enable AES-256 Kerberos encryption and disable RC4 (etype 0x17) via Group Policy.',
+      'Run BloodHound to identify which accounts have SPNs and least-privilege them.',
+      'Search for offline cracking tools (hashcat, JohnTheRipper) on the source IP.',
+    ],
+    isolate: 'netsh advfirewall set allprofiles state on\nnetsh advfirewall firewall add rule name="FLARE-ISOLATE" dir=out action=block\nnetsh advfirewall firewall add rule name="FLARE-ISOLATE-IN" dir=in action=block',
+    caution: 'Blocking Kerberos traffic (TCP/UDP 88) will break domain authentication for ALL users on the host. Isolate only if active credential dumping is confirmed.',
+  },
+  lsass_dump: {
+    steps: [
+      'Isolate the host immediately — credential harvesting is likely already complete.',
+      'Pull a memory image before rebooting (WinPmem, DumpIt) for forensic analysis.',
+      'Search for Mimikatz, ProcDump, or comsvcs.dll invocations in recent process logs.',
+      'Assume ALL credentials cached on this host are compromised — force password resets.',
+      'Enable Credential Guard to prevent future LSASS memory reads.',
+    ],
+    isolate: 'netsh advfirewall set allprofiles state on\nnetsh advfirewall firewall add rule name="FLARE-ISOLATE" dir=out action=block\nnetsh advfirewall firewall add rule name="FLARE-ISOLATE-IN" dir=in action=block',
+    caution: 'CRITICAL — isolate this host immediately. Every credential cached in LSASS should be treated as stolen. Do not reconnect until the host is reimaged.',
+  },
+  psexec_lateral: {
+    steps: [
+      'Identify the source IP from the evidence and isolate it immediately.',
+      'Check ADMIN$ and C$ share access logs on all recently contacted machines.',
+      'Look for PSEXESVC or similarly named services created in the last 24 h.',
+      'Block SMB (TCP 445) lateral movement at the internal firewall between segments.',
+    ],
+    isolate: 'netsh advfirewall set allprofiles state on\nnetsh advfirewall firewall add rule name="FLARE-BLOCK-SMB" protocol=TCP localport=445 dir=in action=block',
+    caution: 'Blocking SMB will break file sharing and some Windows services. Limit the block to the affected subnet where possible.',
+  },
+  pass_the_hash: {
+    steps: [
+      'Identify the source IP from the evidence — it is the compromised machine.',
+      'Disable NTLM authentication via Group Policy where Kerberos is available.',
+      'Enable Protected Users security group for privileged accounts.',
+      'Audit all network logons (Event 4624 LogonType 3) from the source IP in the last hour.',
+    ],
+    isolate: 'netsh advfirewall set allprofiles state on\nnetsh advfirewall firewall add rule name="FLARE-ISOLATE" dir=out action=block\nnetsh advfirewall firewall add rule name="FLARE-ISOLATE-IN" dir=in action=block',
+    caution: 'Pass-the-hash attacks use valid NTLM hashes, so password resets alone are insufficient until the source machine is cleaned or reimaged.',
+  },
+  scheduled_task_creation: {
+    steps: [
+      'Open Task Scheduler and review the task listed in the evidence for the command it runs.',
+      'Delete the task if it is not authorised: schtasks /delete /tn "<TaskName>" /f',
+      'Search for the decoded payload (base64 decode any -enc arguments) to understand the intent.',
+      'Check if similar tasks were created on other machines via Event 4698 in the SIEM.',
+    ],
+    isolate: null,
+    caution: 'Do not run or open the task payload. Decode it in a sandboxed environment first.',
+  },
+  powershell_encoded_cmd: {
+    steps: [
+      'Decode the base64 payload: [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String("<payload>"))',
+      'Enable PowerShell script block logging (Event 4104) if not already enabled.',
+      'Check parent process of the PowerShell invocation — it may reveal the initial access vector.',
+      'Consider enabling Constrained Language Mode to restrict PowerShell capabilities.',
+    ],
+    isolate: null,
+    caution: 'Decode the payload before taking action — some encoded commands are legitimate management scripts. Isolate only if the decoded content is clearly malicious.',
+  },
+  new_local_admin: {
+    steps: [
+      'Verify with your IT team whether this account was created intentionally.',
+      'If not authorised: net user <backdoor_admin> /delete',
+      'Remove the account from the Administrators group: net localgroup Administrators <user> /delete',
+      'Audit all recent privileged account creations across the domain (Event 4732).',
+    ],
+    isolate: null,
+    caution: 'Deleting the wrong account can lock out legitimate admins. Confirm the account name with your IT team before removing it.',
+  },
+  defender_disabled: {
+    steps: [
+      'Re-enable Windows Defender immediately: Set-MpPreference -DisableRealtimeMonitoring $false',
+      'Check which process disabled Defender — search parent process tree around the event timestamp.',
+      'Run a full AV scan: Start-MpScan -ScanType FullScan',
+      'Check for other AV/EDR tampering (Event IDs 5010, 5012, 1116).',
+    ],
+    isolate: null,
+    caution: 'If ransomware is suspected, isolate the host before re-enabling Defender — some ransomware triggers on AV restart. Check for encrypted files first.',
+  },
+  net_portscan: {
+    steps: [
+      'Block the source IP at the perimeter firewall immediately.',
+      'Review what services/ports were found open during the scan.',
+      'Check if the scanning host is internal (compromised) or external (attacker recon).',
+      'If internal: isolate the scanning machine and investigate for C2 or worm activity.',
+    ],
+    isolate: 'New-NetFirewallRule -DisplayName "FLARE-BLOCK-SCANNER" -Direction Inbound -RemoteAddress <src_ip> -Action Block\nNew-NetFirewallRule -DisplayName "FLARE-BLOCK-SCANNER-OUT" -Direction Outbound -RemoteAddress <src_ip> -Action Block',
+    caution: 'Replace <src_ip> with the actual source IP from the evidence before running. Blocking the wrong IP can disrupt legitimate services.',
+  },
+  net_dos: {
+    steps: [
+      'Rate-limit or null-route the source IP at the upstream router or ISP.',
+      'If on-premises: enable SYN cookies or connection rate limiting on the firewall.',
+      'Contact your ISP to activate upstream DDoS scrubbing if traffic volume is high.',
+      'Monitor the target service for degradation and consider failover if available.',
+    ],
+    isolate: 'New-NetFirewallRule -DisplayName "FLARE-BLOCK-DOS-SRC" -Direction Inbound -RemoteAddress <src_ip> -Action Block',
+    caution: 'DoS sources are often spoofed or use botnets — blocking a single IP may have limited effect. Engage upstream mitigation for volumetric attacks.',
+  },
+  net_bruteforce_ssh: {
+    steps: [
+      'Check whether the targeted SSH service is internet-facing — if so, move it behind a VPN.',
+      'Enable account lockout: after 5 failed attempts lock for 30 minutes.',
+      'Switch to key-based SSH authentication and disable password auth.',
+      'Block the source IP: New-NetFirewallRule -DisplayName "FLARE-SSH-BF" -RemoteAddress <src_ip> -Action Block',
+    ],
+    isolate: null,
+    caution: 'Blocking SSH source IPs only helps against single-source attacks. Distributed brute force requires account lockout policies to be effective.',
+  },
+  net_web_attack: {
+    steps: [
+      'Review web server access logs for the source IP and time window — look for SQLi or XSS payloads.',
+      'Patch the affected web application or apply a WAF rule to block the attack pattern.',
+      'Check whether the attack resulted in unauthorised data access or code execution.',
+      'If compromise is suspected, take the application offline and restore from a clean backup.',
+    ],
+    isolate: null,
+    caution: 'Do not take the web server offline before preserving logs and memory — forensic evidence may be lost.',
+  },
+  net_infiltration: {
+    steps: [
+      'Inspect the outbound flow — check destination IP reputation and total bytes transferred.',
+      'If the destination is a known-bad IP, block it immediately and isolate the source host.',
+      'Search for recently installed software or scripts on the source machine.',
+      'Run a full AV/EDR scan on the source host.',
+    ],
+    isolate: 'netsh advfirewall set allprofiles state on\nnetsh advfirewall firewall add rule name="FLARE-ISOLATE" dir=out action=block\nnetsh advfirewall firewall add rule name="FLARE-ISOLATE-IN" dir=in action=block',
+    caution: 'Isolate only after confirming the outbound connection is not legitimate (e.g. backup software, cloud sync). Check with the machine owner first if possible.',
+  },
+};
+
+function _buildActionsPanel(ruleId, clientId) {
+  const info = RULE_ACTIONS[ruleId];
+  if (!info) return '';
+
+  const stepsHtml = info.steps.map((s, i) =>
+    `<div style="display:flex;gap:8px;margin-bottom:5px">
+       <span style="color:var(--blue);font-weight:700;min-width:18px">${i+1}.</span>
+       <span>${esc(s)}</span>
+     </div>`
+  ).join('');
+
+  const cautionHtml = info.caution
+    ? `<div style="margin-top:10px;padding:8px 12px;background:#f851491a;border-left:3px solid var(--red);border-radius:4px">
+         <span style="color:var(--red);font-weight:700">CAUTION: </span>
+         <span style="color:var(--text)">${esc(info.caution)}</span>
+       </div>`
+    : '';
+
+  const isolateId = 'iso-' + ruleId + '-' + Date.now();
+  const isolateHtml = info.isolate
+    ? `<div style="margin-top:10px">
+         <div style="font-size:11px;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">
+           Emergency isolation command (run as Administrator on the affected machine)
+         </div>
+         <pre style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px 10px;font-size:12px;color:var(--orange);white-space:pre-wrap;word-break:break-all" id="${isolateId}">${esc(info.isolate.replace(/<src_ip>/g, '???'))}</pre>
+         <div style="font-size:11px;color:var(--red);margin-top:3px">
+           &#9888; Review and edit the command before running. Replace placeholder values (???) with the actual IPs from the evidence above.
+         </div>
+       </div>`
+    : '';
+
+  return `<div class="dfield" style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+    <label style="color:var(--yellow);font-size:12px;text-transform:uppercase;letter-spacing:.5px">Recommended Actions</label>
+    <div style="margin-top:8px">${stepsHtml}</div>
+    ${cautionHtml}
+    ${isolateHtml}
+  </div>`;
+}
+
+function toggleDetail(tr, a) {
+  // If this row already has an open detail — close it
+  const nxt = tr.nextElementSibling;
+  if (nxt && nxt.classList.contains('detail-row')) { nxt.remove(); return; }
+  // Remove any other open detail
+  document.querySelectorAll('.detail-row').forEach(r => r.remove());
+
+  let evStr = '—';
+  if (a.evidence) {
+    try { evStr = JSON.stringify(JSON.parse(a.evidence), null, 2); }
+    catch { evStr = a.evidence; }
+  }
+
+  const mitre = a.mitre_id
+    ? `<a href="https://attack.mitre.org/techniques/${a.mitre_id.replace('.','/').replace('.','/') }"
+          target="_blank" rel="noopener">${esc(a.mitre_id)}</a>${a.mitre_tactic ? ' — ' + esc(a.mitre_tactic) : ''}`
+    : '—';
+
+
+  // Store alert metadata so the new-tab report can reference it
+  _alertCache[a.alert_id] = a;
+
+  const fetchLogsHtml = `<div class="dfield" style="grid-column:1/-1">
+      <label>Raw Log</label>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:4px">View raw triggering event context</div>
+      <div id="logpanel-${esc(a.alert_id)}">
+        <button class="btn primary" style="margin-top:2px"
+          onclick="showDetail('${esc(a.alert_id)}')">
+          🔍 Show in detail
+        </button>
+      </div>
+     </div>`;
+
+  const det = document.createElement('tr');
+  det.className = 'detail-row';
+  det.innerHTML = `<td colspan="8">
+    <div class="detail-box">
+      <div class="dfield">
+        <label>Alert ID</label>
+        <div class="val mono">${esc(a.alert_id)}</div>
+      </div>
+      <div class="dfield">
+        <label>Timestamp</label>
+        <div class="val">${esc(a.timestamp || '—')}</div>
+      </div>
+      <div class="dfield">
+        <label>MITRE ATT&amp;CK</label>
+        <div class="val">${mitre}</div>
+      </div>
+      <div class="dfield">
+        <label>Window</label>
+        <div class="val">${esc(a.window_start || '—')} → ${esc(a.window_end || '—')}</div>
+      </div>
+      <div class="dfield detail-box full-col" style="grid-column:1/-1;padding:0;border:none;background:none">
+        <div class="dfield" style="grid-column:1/-1">
+          <label>Suggestion</label>
+          <div class="val">${esc(a.suggestion || '—')}</div>
+        </div>
+        <div class="dfield" style="grid-column:1/-1">
+          <label>Risk Note</label>
+          <div class="val">${esc(a.risk_note || '—')}</div>
+        </div>
+        <div class="dfield" style="grid-column:1/-1">
+          <label>Evidence</label>
+          <pre class="evidence-pre">${esc(evStr)}</pre>
+        </div>
+        ${_buildActionsPanel(a.rule_id, a.client_id)}
+        ${fetchLogsHtml}
+        <div class="alert-actions">
+          <button class="act-btn act-false"  id="btn-false-${esc(a.alert_id)}"   onclick="_actFalse('${esc(a.alert_id)}')">
+            <span>⚑</span> Report as False Alert
+          </button>
+          <button class="act-btn act-dismiss" id="btn-dismiss-${esc(a.alert_id)}" onclick="_actDismiss('${esc(a.alert_id)}')">
+            <span>✓</span> Dismiss as Fixed
+          </button>
+          <button class="act-btn act-action"  id="btn-action-${esc(a.alert_id)}"  onclick="_actTakeAction('${esc(a.alert_id)}')">
+            <span>⚡</span> Take Action
+          </button>
+        </div>
+        <div class="act-msg" id="act-msg-${esc(a.alert_id)}"></div>
+      </div>
+    </div>
+  </td>`;
+  tr.parentNode.insertBefore(det, tr.nextSibling);
+}
+
+// ── Alert metadata cache ───────────────────────────────────────────────────
+const _alertCache  = {};
+
+// ── Alert action button handlers ───────────────────────────────────────────
+
+function _actBusy(id) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="act-spinner"></span> Processing…';
+}
+
+function _actConfirm(id, doneClass, icon, label) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.className = btn.className.replace(/\bact-\S+/g, '').trim() + ' act-btn ' + doneClass;
+  btn.disabled = true;
+  btn.innerHTML = icon + ' ' + label;
+  btn.closest('.alert-actions').querySelectorAll('.act-btn').forEach(b => {
+    if (b !== btn) { b.disabled = true; b.style.opacity = '0.3'; }
+  });
+}
+
+function _showActMsg(alertId, bg, border, color, html) {
+  const msg = document.getElementById('act-msg-' + alertId);
+  if (!msg) return;
+  msg.style.cssText += `;display:block;background:${bg};border:1px solid ${border};color:${color}`;
+  msg.innerHTML = html;
+}
+
+function _actFalse(alertId) {
+  const bid = 'btn-false-' + alertId;
+  _actBusy(bid);
+  setTimeout(() => {
+    _actConfirm(bid, 'act-done-false', '⚑', 'Marked as False Alert');
+    // Tint parent row red
+    const detRow = document.getElementById(bid).closest('tr');
+    const parentRow = detRow && detRow.previousElementSibling;
+    if (parentRow) parentRow.classList.add('row-false');
+    // Inline message
+    _showActMsg(alertId,
+      'rgba(248,81,73,0.1)', 'rgba(248,81,73,0.4)', 'var(--red)',
+      '<strong>⚠️ Thank you for your feedback.</strong> This alert has been flagged as a false positive and will be recalibrated accordingly. Our detection models will be updated to reduce similar false reports in future.'
+    );
+    showToast('Alert reported as false positive — analyst review queued.');
+  }, 1050);
+}
+
+function _actDismiss(alertId) {
+  const bid = 'btn-dismiss-' + alertId;
+  _actBusy(bid);
+  setTimeout(() => {
+    _actConfirm(bid, 'act-done-dismiss', '✓', 'Dismissed as Fixed');
+    // Tint parent row green
+    const detRow = document.getElementById(bid).closest('tr');
+    const parentRow = detRow && detRow.previousElementSibling;
+    if (parentRow) parentRow.classList.add('row-solved');
+    // Inline message with a Clear button
+    _showActMsg(alertId,
+      'rgba(63,185,80,0.1)', 'rgba(63,185,80,0.4)', 'var(--green)',
+      `<strong>✅ Alert dismissed as resolved.</strong> The incident has been logged as handled and will not trigger further escalation.
+      <div style="margin-top:10px">
+        <button class="btn" onclick="_clearRow('${alertId}')" style="color:var(--red);border-color:rgba(248,81,73,0.4);font-size:11px">✕ Remove from list</button>
+      </div>`
+    );
+    showToast('Alert dismissed — marked resolved in the incident log.');
+  }, 950);
+}
+
+function _clearRow(alertId) {
+  const btn = document.getElementById('btn-dismiss-' + alertId);
+  if (!btn) return;
+  const detRow = btn.closest('tr');
+  const parentRow = detRow && detRow.previousElementSibling;
+  if (detRow) detRow.remove();
+  if (parentRow) { parentRow.style.transition = 'opacity 0.3s'; parentRow.style.opacity = '0'; setTimeout(() => parentRow.remove(), 300); }
+  showToast('Alert cleared from view.');
+}
+
+function _actTakeAction(alertId) {
+  const bid = 'btn-action-' + alertId;
+  _actBusy(bid);
+  const a = _alertCache[alertId];
+  const ip  = (a && a.client_ip)  ? a.client_ip  : '???';
+  const cid = (a && a.client_id)  ? a.client_id  : alertId;
+
+  // Remote PowerShell — disables ALL network adapters on the client (full network isolation)
+  const lines = [
+    '# ================================================================',
+    '# FLARE — Full Network Isolation  |  Run on the FLARE Server',
+    '# Target : ' + cid + '  (' + ip + ')',
+    '# Requires: WinRM / Remote PowerShell enabled on the target',
+    '# ================================================================',
+    '',
+    '$TargetIP = "' + ip + '"',
+    '',
+    '# Step 1 — Remotely disable ALL network adapters on the target machine',
+    '# This cuts the node from the entire network, not just from this server.',
+    'Invoke-Command -ComputerName $TargetIP -ScriptBlock {',
+    '    Get-NetAdapter | Disable-NetAdapter -Confirm:$false',
+    '    Write-EventLog -LogName Application -Source "FLARE" `',
+    '        -EventId 9001 -EntryType Warning `',
+    '        -Message "FLARE: Network isolation triggered by security server."',
+    '}',
+    '',
+    '# Step 2 — Confirm adapters are down',
+    'Invoke-Command -ComputerName $TargetIP -ScriptBlock {',
+    '    Get-NetAdapter | Select-Object Name, Status',
+    '}',
+    '',
+    'Write-Host "[FLARE] All network adapters on $TargetIP have been disabled." -ForegroundColor Red',
+    'Write-Host "[FLARE] To restore: Invoke-Command -ComputerName $TargetIP -ScriptBlock { Get-NetAdapter | Enable-NetAdapter -Confirm:$false }" -ForegroundColor Yellow',
+  ];
+  const isolateCmd = lines.join('\n');
+
+  setTimeout(() => {
+    _actConfirm(bid, 'act-done-action', '⚡', 'Action Initiated');
+    _openIsoModal(isolateCmd, cid, ip);
+    _showActMsg(alertId,
+      'rgba(88,166,255,0.1)', 'rgba(88,166,255,0.35)', 'var(--blue)',
+      '<strong>⚡ Full network isolation initiated.</strong> A remote PowerShell command has been generated to disable ALL network adapters on <code style="color:var(--text)">' + cid + ' (' + ip + ')</code>, cutting it from the entire network. If WinRM is unavailable, physically unplug the ethernet cable or shut the device down immediately.'
+    );
+    showToast('Isolation command ready — execute on the FLARE server.');
+  }, 1200);
+}
+
+function _openIsoModal(cmd, clientId, clientIp) {
+  const label = clientId + (clientIp && clientIp !== '???' ? '  (' + clientIp + ')' : '');
+  document.getElementById('iso-client').textContent = label;
+  document.getElementById('iso-cmd').textContent = cmd;
+  const m = document.getElementById('isolate-modal');
+  m.style.display = 'flex';
+}
+
+function _copyIsoCmd() {
+  const cmd = document.getElementById('iso-cmd').textContent;
+  navigator.clipboard.writeText(cmd)
+    .then(() => showToast('Command copied to clipboard.'))
+    .catch(() => showToast('Copy failed — select the text manually.'));
+}
+
+// ── Alert filter management ───────────────────────────────────────────────────
+let _hideFalse = false;
+
+function clearSolved() {
+  let count = 0;
+  document.querySelectorAll('tr.row-solved').forEach(row => {
+    const next = row.nextElementSibling;
+    if (next && next.classList.contains('detail-row')) next.remove();
+    row.remove(); count++;
+  });
+  showToast(count ? `Cleared ${count} resolved alert${count > 1 ? 's' : ''} from view.` : 'No resolved alerts to clear.');
+}
+
+function toggleHideFalse() {
+  _hideFalse = !_hideFalse;
+  document.querySelectorAll('tr.row-false').forEach(row => {
+    row.classList.toggle('row-false-hidden', _hideFalse);
+    const next = row.nextElementSibling;
+    if (next && next.classList.contains('detail-row')) next.style.display = _hideFalse ? 'none' : '';
+  });
+  const btn = document.getElementById('btn-hide-false');
+  if (btn) btn.innerHTML = _hideFalse ? '👁 Show False Alerts' : '🚫 Hide False Alerts';
+  showToast(_hideFalse ? 'False alerts hidden.' : 'False alerts shown.');
+}
+
+function showDetail(alertId) {
+  _launchReport(alertId);
+}
+
+// HTML-escape for the standalone report page (no DOM access)
+function _he(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function _launchReport(alertId) {
+  const a = _alertCache[alertId];
+  if (!a) return;
+
+  // Evidence rows
+  let evObj = {};
+  try { evObj = JSON.parse(a.evidence || '{}'); } catch {}
+  const evRows = Object.entries(evObj)
+    .map(([k,v]) => `<tr><td class="ek">${_he(k)}</td><td class="ev">${_he(String(v))}</td></tr>`)
+    .join('');
+
+  // Raw Log XML
+  const rawLogHtml = a.raw_log
+    ? `<pre class="cmd" style="color:#e6edf3">${_he(a.raw_log)}</pre>`
+    : `<div class="no-data">No raw log available for this alert.</div>`;
+
+  // Recommended actions from existing RULE_ACTIONS table
+  const ruleInfo   = RULE_ACTIONS[a.rule_id] || null;
+  const stepsHtml  = ruleInfo
+    ? ruleInfo.steps.map((s,i) => `<div class="step"><span class="stepn">${i+1}</span>${_he(s)}</div>`).join('')
+    : '<p class="dim">No specific playbook entry for this rule. Follow your IR procedure.</p>';
+  const cautionHtml = ruleInfo && ruleInfo.caution
+    ? `<div class="caution"><strong>CAUTION:</strong> ${_he(ruleInfo.caution)}</div>` : '';
+  const isolateHtml = ruleInfo && ruleInfo.isolate
+    ? `<div class="section-label" style="margin-top:14px">Emergency Isolation Command (run as Administrator)</div>
+       <pre class="cmd">${_he(ruleInfo.isolate)}</pre>` : '';
+
+  // Severity styling
+  const sevColour = { 1:'#8b949e', 2:'#58a6ff', 3:'#d29922', 4:'#fb8500', 5:'#f85149' };
+  const sevName   = { 1:'Low', 2:'Medium', 3:'High', 4:'Critical', 5:'Critical' };
+  const sev       = a.severity || 1;
+  const conf      = a.confidence != null ? Math.round(a.confidence * 100) + '%' : '—';
+  const mitreUrl  = a.mitre_id
+    ? `https://attack.mitre.org/techniques/${a.mitre_id.replace('.','/').replace('.','/') }` : null;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FLARE Report — ${_he(a.attack_type || a.rule_id || alertId)}</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0d1117;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.6;padding:36px 28px;max-width:1100px;margin:0 auto}
+  a{color:#58a6ff;text-decoration:none} a:hover{text-decoration:underline}
+  h1{font-size:22px;font-weight:700;margin-bottom:4px}
+  h2{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:#8b949e;margin:28px 0 10px;padding-bottom:6px;border-bottom:1px solid #21262d}
+  .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;margin-left:8px;vertical-align:middle}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;margin-bottom:4px}
+  .meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+  .mfield label{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:3px}
+  .mfield .val{font-size:13px;word-break:break-all}
+  .mono{font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:12px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:7px 10px;text-align:left;border-bottom:1px solid #21262d;font-size:12px;vertical-align:top}
+  th{background:#0d1117;color:#8b949e;font-size:11px;font-weight:600;position:sticky;top:0;z-index:1}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#1c2128}
+  .scroll-wrap{overflow-x:auto;max-height:400px;overflow-y:auto;border:1px solid #30363d;border-radius:6px}
+  .dk{color:#8b949e;font-size:11px}
+  .section-label{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+  .step{display:flex;gap:10px;margin-bottom:9px;font-size:13px}
+  .stepn{color:#58a6ff;font-weight:700;min-width:22px;flex-shrink:0;padding-top:1px}
+  .caution{background:#f851491a;border-left:3px solid #f85149;border-radius:4px;padding:10px 14px;margin-top:14px;font-size:13px}
+  .caution strong{color:#f85149}
+  pre.cmd{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;font-size:12px;color:#fb8500;white-space:pre-wrap;word-break:break-all}
+  .dim{color:#8b949e;font-size:13px}
+  .topbar{display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid #30363d}
+  .ek{color:#8b949e;font-size:12px;white-space:nowrap;width:200px;vertical-align:top}
+  .ev{font-size:12px;word-break:break-all;font-family:'Cascadia Code','Fira Code',Consolas,monospace}
+  .no-data{color:#8b949e;font-style:italic;padding:14px}
+  @media print{body{background:#fff;color:#000} .card{border-color:#ccc} h2{color:#555}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span style="font-size:28px">🔥</span>
+  <div>
+    <div style="font-size:18px;font-weight:700">FLARE v0.4 — Incident Log Report</div>
+    <div style="font-size:12px;color:#8b949e">Generated ${new Date().toLocaleString()} · Alert ID: ${_he(a.alert_id || alertId)}</div>
+  </div>
+</div>
+
+<h1>${_he(a.attack_type || 'Unknown Detection')}
+  <span class="badge" style="background:${sevColour[sev]}22;color:${sevColour[sev]};border:1px solid ${sevColour[sev]}55">${sevName[sev]}</span>
+</h1>
+<div style="color:#8b949e;font-size:13px;margin-top:6px;margin-bottom:24px">
+  Rule: <code class="mono" style="color:#e6edf3">${_he(a.rule_id || '—')}</code>
+  &nbsp;·&nbsp; Client: <strong style="color:#e6edf3">${_he(a.client_id || '—')}</strong>
+  &nbsp;·&nbsp; Confidence: <strong style="color:#e6edf3">${conf}</strong>
+  &nbsp;·&nbsp; MITRE: ${mitreUrl
+    ? `<a href="${mitreUrl}" target="_blank">${_he(a.mitre_id)} — ${_he(a.mitre_tactic||'')}</a>`
+    : _he(a.mitre_id || '—')}
+</div>
+
+<h2>Detection Metadata</h2>
+<div class="card">
+  <div class="meta-grid">
+    <div class="mfield"><label>Timestamp (Received)</label><div class="val">${_he(a.timestamp||'—')}</div></div>
+    <div class="mfield"><label>Detection Window Start</label><div class="val">${_he(a.window_start||'—')}</div></div>
+    <div class="mfield"><label>Detection Window End</label><div class="val">${_he(a.window_end||'—')}</div></div>
+    <div class="mfield"><label>Client IP</label><div class="val mono">${_he(a.client_ip||'—')}</div></div>
+    <div class="mfield"><label>Log Channel</label><div class="val mono">${_he(a.channel||'—')}</div></div>
+    <div class="mfield"><label>Event Count</label><div class="val">${a.event_count||'—'}</div></div>
+  </div>
+</div>
+
+<h2>Raw Log (${a.track === 1 ? 'Windows Event Log' : 'MLP Network Flow'})</h2>
+<div class="scroll-wrap">
+  ${rawLogHtml}
+</div>
+
+<h2>Alert Evidence</h2>
+<div class="scroll-wrap">
+  ${evRows
+    ? `<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${evRows}</tbody></table>`
+    : '<div class="no-data">No structured evidence attached to this alert.</div>'}
+</div>
+
+<h2>Detection Analysis & Reasoning</h2>
+<div class="card">
+  <div class="section-label">Why this was flagged</div>
+  <p style="font-size:13px;margin-bottom:18px;line-height:1.7">${_he(a.risk_note || 'No risk note available for this rule.')}</p>
+  <div class="section-label">Analyst Suggestion</div>
+  <p style="font-size:13px;line-height:1.7">${_he(a.suggestion || 'No automated suggestion available.')}</p>
+</div>
+
+<h2>Recommended Response Actions</h2>
+<div class="card">
+  ${stepsHtml}
+  ${cautionHtml}
+  ${isolateHtml}
+</div>
+
+</body></html>`;
+
+  const tab = window.open('', '_blank');
+  if (!tab) {
+    alert('Pop-up blocked — please allow pop-ups for this site and try again.');
+    return;
+  }
+  tab.document.open();
+  tab.document.write(html);
+  tab.document.close();
+}
+
+// ── Export CSV ─────────────────────────────────────────────────────────────
+
+
+async function exportAlerts() {
+  try {
+    const track  = document.getElementById('f-track').value;
+    const sev    = document.getElementById('f-severity').value;
+    const rule   = document.getElementById('f-rule').value.trim();
+    const client = document.getElementById('f-client-filter').value.trim();
+    let url = `/api/alerts?limit=10000&offset=0`;
+    if (track)  url += '&track='        + encodeURIComponent(track);
+    if (sev)    url += '&min_severity=' + encodeURIComponent(sev);
+    if (rule)   url += '&rule_id='      + encodeURIComponent(rule);
+    if (client) url += '&client_id='    + encodeURIComponent(client);
+    const data = await api(url);
+    if (!data.alerts.length) { showToast('No alerts to export'); return; }
+
+    const cols = ['alert_id','received_at','client_id','client_ip','track',
+                  'attack_type','severity','confidence','rule_id','mitre_id',
+                  'mitre_tactic','suggestion','risk_note','event_count','evidence'];
+    let csv = cols.join(',') + '\n';
+    data.alerts.forEach(a => {
+      csv += cols.map(c => '"' + String(a[c] ?? '').replace(/"/g, '""') + '"').join(',') + '\n';
+    });
+    const link = Object.assign(document.createElement('a'), {
+      href:     URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
+      download: 'flare_alerts_' + new Date().toISOString().slice(0,10) + '.csv',
+    });
+    link.click();
+    showToast('Exported ' + data.alerts.length + ' alerts');
+  } catch(e) {
+    showToast('Export failed: ' + e.message);
+  }
+}
+
+// ── Clients tab ────────────────────────────────────────────────────────────
+
+async function fetchClients() {
+  const tbody = document.getElementById('clients-tbody');
+  try {
+    const data = await api('/api/clients');
+    if (!data.clients.length) {
+      tbody.innerHTML = '<tr><td colspan="10" class="empty">No clients registered yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = '';
+    data.clients.forEach(c => {
+      const tr = document.createElement('tr');
+      tr.className = 'clickable';
+      tr.innerHTML = `
+        <td>${c.online ? '<span class="pill pill-online">● Online</span>' : '<span class="pill pill-offline">○ Offline</span>'}</td>
+        <td><span class="mono truncate">${esc(c.client_id)}</span></td>
+        <td class="mono">${esc(c.client_ip || '—')}</td>
+        <td>${esc(c.agent_version || '—')}</td>
+        <td>${fmtUptime(c.uptime_seconds)}</td>
+        <td>${fmtNum(c.host_alerts_total)}</td>
+        <td>${fmtNum(c.net_alerts_total)}</td>
+        <td>${fmtNum(c.ioc_matches_total)}</td>
+        <td>${fmtNum(c.rule_hits_total)}</td>
+        <td class="c-dim">${fmtAgo(c.last_seen_ago)}</td>
+      `;
+      tr.addEventListener('click', () => showClientDetail(c));
+      tbody.appendChild(tr);
+    });
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty c-red">' + esc(e.message) + '</td></tr>';
+  }
+}
+
+function showClientDetail(c) {
+  const panel = document.getElementById('client-detail');
+  panel.style.display = 'block';
+  setText('cd-title', 'Client: ' + c.client_id);
+
+  const statusHtml = c.online
+    ? '<span class="c-green">● Online</span>'
+    : '<span class="c-red">○ Offline</span>';
+  const hostOk = c.host_track_ok
+    ? '<span class="c-green">✔ OK</span>'
+    : '<span class="c-red">✘ Down</span>';
+  const netOk = c.net_track_ok
+    ? '<span class="c-green">✔ OK</span>'
+    : '<span class="c-red">✘ Down</span>';
+
+  document.getElementById('cd-grid').innerHTML = `
+    <div class="cstat"><div class="cstat-label">Status</div><div class="cstat-value">${statusHtml}</div></div>
+    <div class="cstat"><div class="cstat-label">IP Address</div><div class="cstat-value sm mono">${esc(c.client_ip||'—')}</div></div>
+    <div class="cstat"><div class="cstat-label">Agent Version</div><div class="cstat-value sm">${esc(c.agent_version||'—')}</div></div>
+    <div class="cstat"><div class="cstat-label">Uptime</div><div class="cstat-value sm">${fmtUptime(c.uptime_seconds)}</div></div>
+    <div class="cstat"><div class="cstat-label">Host Track</div><div class="cstat-value">${hostOk}</div></div>
+    <div class="cstat"><div class="cstat-label">Net Track</div><div class="cstat-value">${netOk}</div></div>
+    <div class="cstat"><div class="cstat-label">Host Alerts</div><div class="cstat-value">${fmtNum(c.host_alerts_total)}</div></div>
+    <div class="cstat"><div class="cstat-label">Net Alerts</div><div class="cstat-value">${fmtNum(c.net_alerts_total)}</div></div>
+    <div class="cstat"><div class="cstat-label">IOC Matches</div><div class="cstat-value">${fmtNum(c.ioc_matches_total)}</div></div>
+    <div class="cstat"><div class="cstat-label">Rule Hits</div><div class="cstat-value">${fmtNum(c.rule_hits_total)}</div></div>
+    <div class="cstat"><div class="cstat-label">Last Seen</div><div class="cstat-value sm">${fmtAgo(c.last_seen_ago)}</div></div>
+    <div class="cstat"><div class="cstat-label">Last Seen At</div><div class="cstat-value sm">${new Date(c.last_seen*1000).toLocaleString()}</div></div>
+  `;
+
+  setText('cd-net-hash',  c.net_model_hash  || 'not set');
+  setText('cd-host-hash', c.host_model_hash || 'not set');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── FL tab ─────────────────────────────────────────────────────────────────
+
+async function fetchFL() {
+  try {
+    const status  = await api('/api/status');
+    const fl      = status.fl_model;
+    const pending = status.fl_pending_updates || 0;
+    const minCli  = status.fl_min_clients     || 3;
+    const pct     = Math.min(100, Math.round((pending / minCli) * 100));
+
+    const modelEl = document.getElementById('fl-model-info');
+    if (!fl) {
+      modelEl.innerHTML = '<div class="empty">No FL model yet — waiting for first FedAvg round</div>';
+    } else {
+      modelEl.innerHTML = `
+        <div class="fl-stat-grid">
+          <div class="cstat"><div class="cstat-label">Round</div><div class="cstat-value">${fl.round}</div></div>
+          <div class="cstat"><div class="cstat-label">Version</div><div class="cstat-value sm">${esc(fl.version||'—')}</div></div>
+          <div class="cstat"><div class="cstat-label">Clients Contributed</div><div class="cstat-value">${fmtNum(fl.client_count)}</div></div>
+          <div class="cstat"><div class="cstat-label">Last Updated</div><div class="cstat-value sm">${fl.updated_at ? new Date(fl.updated_at*1000).toLocaleString() : '—'}</div></div>
+        </div>`;
+    }
+
+    const aggEl = document.getElementById('fl-agg-info');
+    const ready = pending >= minCli;
+    aggEl.innerHTML = `
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px">
+          <span class="c-dim">Pending client updates</span>
+          <strong>${fmtNum(pending)} / ${fmtNum(minCli)}</strong>
+        </div>
+        <div class="fl-progress">
+          <div class="fl-bar" style="width:${pct}%"></div>
+        </div>
+      </div>
+      <div class="fl-stat-grid">
+        <div class="cstat">
+          <div class="cstat-label">Status</div>
+          <div style="margin-top:5px;font-size:13px">
+            ${ready
+              ? '<span class="c-green">✔ Ready to aggregate</span>'
+              : '<span class="c-dim">Waiting for ' + (minCli - pending) + ' more update' + (minCli - pending !== 1 ? 's' : '') + '</span>'
+            }
+          </div>
+        </div>
+        <div class="cstat">
+          <div class="cstat-label">Min Clients Required</div>
+          <div class="cstat-value">${fmtNum(minCli)}</div>
+        </div>
+      </div>`;
+  } catch(e) {
+    document.getElementById('fl-model-info').innerHTML =
+      '<div class="empty c-red">' + esc(e.message) + '</div>';
+    document.getElementById('fl-agg-info').innerHTML   = '';
+  }
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = String(val ?? '—');
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtNum(n) {
+  if (n == null) return '—';
+  return Number(n).toLocaleString();
+}
+
+function fmtTime(ts) {
+  if (!ts) return '—';
+  return new Date(ts * 1000).toLocaleString(undefined, {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+}
+
+function fmtAgo(secs) {
+  if (secs == null) return '—';
+  secs = Math.max(0, Math.round(secs));
+  if (secs < 60)    return secs + 's ago';
+  if (secs < 3600)  return Math.floor(secs / 60) + 'm ago';
+  if (secs < 86400) {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    return h + 'h ' + m + 'm ago';
+  }
+  return Math.floor(secs / 86400) + 'd ago';
+}
+
+function fmtUptime(secs) {
+  if (!secs) return '—';
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (d > 0) return d + 'd ' + h + 'h';
+  if (h > 0) return h + 'h ' + m + 'm';
+  return m + 'm ' + (secs % 60) + 's';
+}
+
+function sevPill(sev) {
+  const labels = { 4:'Critical', 3:'High', 2:'Medium', 1:'Low', 0:'Unknown' };
+  const s = parseInt(sev) || 0;
+  return `<span class="sev sev-${s}">${labels[s] || 'Unknown'}</span>`;
+}
+
+function trackPill(tr) {
+  const labels = { 1:'Host', 2:'Network', 0:'—' };
+  const t = parseInt(tr) || 0;
+  return `<span class="track track-${t}">${labels[t] || '—'}</span>`;
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+</script>
+</body>
+</html>
