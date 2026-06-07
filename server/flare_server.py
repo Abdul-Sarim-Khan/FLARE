@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
-FLARE v0.4 — Server
+FLARE v0.6 — Server
 """
 
 import hashlib
@@ -75,7 +75,7 @@ TLS_CA              = _cfg("FLARE_CA_CERT",              str(ROOT / "certs" / "c
 PROVISION_TOKEN     = _cfg("FLARE_PROVISION_TOKEN",      "flare") 
 
 MIN_FL_CLIENTS     = int(_cfg("FLARE_FL_MIN_CLIENTS", "1"))
-OFFLINE_AFTER_SECS = 180          
+OFFLINE_AFTER_SECS = 180   # agents heartbeat every 60 s; allow 3 missed before offline
 MAX_STALE_ROUNDS   = 1            
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -336,7 +336,7 @@ async def _lifespan(app: FastAPI):
     bootstrap_fl_model()
     yield
 
-app = FastAPI(title="FLARE v0.4", version="0.4.0", lifespan=_lifespan)
+app = FastAPI(title="FLARE v0.6", version="0.6.0", lifespan=_lifespan)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PROVISIONING APIS
@@ -382,18 +382,80 @@ async def ingest_alerts(request: Request):
     body = await request.body()
     frames = read_frames(body)
     inserted = 0
+    now = time.time()
     conn = _get_conn()
+
+    # Server-side burst deduplication window (seconds).
+    # If the same client already has an alert with the same attack_type
+    # received within this window, merge the new one in (update event_count
+    # and confidence) rather than inserting a duplicate row.
+    # This handles the case where the agent still sends per-flow alerts during
+    # an attack burst — the server collapses them into one running tally.
+    _DEDUP_WINDOW = 60  # seconds
+
     for frame in frames:
         batch = pb.AlertBatch()
         batch.ParseFromString(frame)
         for ev in batch.alerts:
             try:
-                conn.execute(
-                    """INSERT OR IGNORE INTO alerts (alert_id, received_at, client_id, client_ip, timestamp, track, attack_type, severity, confidence, window_start, window_end, event_count, evidence, rule_id, mitre_id, mitre_tactic, suggestion, risk_note, raw_log) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (ev.alert_id or str(uuid.uuid4()), time.time(), ev.client_id, ev.client_ip, ev.timestamp, ev.track, ev.attack_type, ev.severity, ev.confidence, ev.window_start, ev.window_end, ev.event_count, ev.evidence, ev.rule_id, ev.mitre_id, ev.mitre_tactic, ev.suggestion, ev.risk_note, ev.raw_log)
-                )
-                if conn.total_changes > 0: inserted += 1
-            except sqlite3.IntegrityError: pass
+                # Check for a recent alert from the same client with same type
+                existing = conn.execute(
+                    """SELECT id, event_count, confidence, rule_id
+                       FROM alerts
+                       WHERE client_id   = ?
+                         AND attack_type = ?
+                         AND track       = ?
+                         AND received_at >= ?
+                       ORDER BY received_at DESC
+                       LIMIT 1""",
+                    (ev.client_id, ev.attack_type, ev.track, now - _DEDUP_WINDOW)
+                ).fetchone()
+
+                if existing:
+                    # Merge: bump event_count, keep highest confidence.
+                    # Also backfill rule metadata if the stored row has it empty
+                    # (happens when earlier alerts arrived before the agent fix).
+                    new_count = existing[1] + max(ev.event_count, 1)
+                    new_conf  = max(existing[2], ev.confidence)
+                    conn.execute(
+                        """UPDATE alerts SET
+                               event_count  = ?,
+                               confidence   = ?,
+                               received_at  = ?,
+                               rule_id      = CASE WHEN (rule_id IS NULL OR rule_id = '') AND ? != '' THEN ? ELSE rule_id END,
+                               mitre_id     = CASE WHEN (mitre_id IS NULL OR mitre_id = '') AND ? != '' THEN ? ELSE mitre_id END,
+                               mitre_tactic = CASE WHEN (mitre_tactic IS NULL OR mitre_tactic = '') AND ? != '' THEN ? ELSE mitre_tactic END,
+                               suggestion   = CASE WHEN (suggestion IS NULL OR suggestion = '') AND ? != '' THEN ? ELSE suggestion END,
+                               risk_note    = CASE WHEN (risk_note IS NULL OR risk_note = '') AND ? != '' THEN ? ELSE risk_note END
+                           WHERE id = ?""",
+                        (new_count, new_conf, now,
+                         ev.rule_id,      ev.rule_id,
+                         ev.mitre_id,     ev.mitre_id,
+                         ev.mitre_tactic, ev.mitre_tactic,
+                         ev.suggestion,   ev.suggestion,
+                         ev.risk_note,    ev.risk_note,
+                         existing[0])
+                    )
+                    # don't increment inserted — this is a merge not a new row
+                else:
+                    conn.execute(
+                        """INSERT OR IGNORE INTO alerts
+                           (alert_id, received_at, client_id, client_ip, timestamp,
+                            track, attack_type, severity, confidence,
+                            window_start, window_end, event_count, evidence,
+                            rule_id, mitre_id, mitre_tactic, suggestion, risk_note, raw_log)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (ev.alert_id or str(uuid.uuid4()), now,
+                         ev.client_id, ev.client_ip, ev.timestamp,
+                         ev.track, ev.attack_type, ev.severity, ev.confidence,
+                         ev.window_start, ev.window_end, max(ev.event_count, 1),
+                         ev.evidence, ev.rule_id, ev.mitre_id, ev.mitre_tactic,
+                         ev.suggestion, ev.risk_note, ev.raw_log)
+                    )
+                    if conn.total_changes > 0: inserted += 1
+            except Exception:
+                pass
+
     conn.commit(); conn.close()
     return {"inserted": inserted}
 
@@ -451,14 +513,74 @@ async def list_alerts(request: Request, limit: int = 100, offset: int = 0):
     conn.close()
     return {"total": total, "offset": offset, "limit": limit, "alerts": [dict(r) for r in rows]}
 
+@app.patch("/api/alerts/{alert_id}/status")
+async def update_alert_status(alert_id: str, request: Request):
+    """Update the status of a single alert.
+
+    Body (JSON): { "status": "resolved" | "false_positive" | "open" }
+
+    Returns 200 with the updated alert row on success.
+    """
+    _require_session(request)
+    body = await request.json()
+    status = body.get("status", "").strip()
+    if status not in ("open", "resolved", "false_positive"):
+        raise HTTPException(status_code=400, detail="status must be 'open', 'resolved', or 'false_positive'")
+    conn = _get_conn()
+    conn.execute(
+        "UPDATE alerts SET status = ? WHERE alert_id = ?",
+        (status, alert_id)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM alerts WHERE alert_id = ?", (alert_id,)).fetchone()
+    conn.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return dict(row)
+
+
 @app.get("/api/alerts/stats")
 async def alert_stats(request: Request, hours: int = 24):
     _require_session(request)
-    conn = _get_conn()
+    conn   = _get_conn()
     cutoff = time.time() - (hours * 3600)
-    rows = conn.execute("SELECT severity, count(*) as count FROM alerts WHERE received_at >= ? GROUP BY severity", (cutoff,)).fetchall()
+
+    # Severity breakdown  {4: N, 3: N, 2: N, 1: N, 0: N}
+    sev_rows = conn.execute(
+        "SELECT severity, COUNT(*) as count FROM alerts WHERE received_at >= ? GROUP BY severity",
+        (cutoff,)
+    ).fetchall()
+    by_severity = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
+    for r in sev_rows:
+        k = int(r["severity"] or 0)
+        by_severity[k] = by_severity.get(k, 0) + r["count"]
+
+    # Track breakdown  {1: N, 2: N, 0: N}
+    trk_rows = conn.execute(
+        "SELECT track, COUNT(*) as count FROM alerts WHERE received_at >= ? GROUP BY track",
+        (cutoff,)
+    ).fetchall()
+    by_track = {0: 0, 1: 0, 2: 0}
+    for r in trk_rows:
+        k = int(r["track"] or 0)
+        by_track[k] = by_track.get(k, 0) + r["count"]
+
+    # Top attack types (shown in bar chart as "rules")
+    type_rows = conn.execute(
+        """SELECT attack_type as rule_id, COUNT(*) as count
+           FROM alerts WHERE received_at >= ? AND attack_type IS NOT NULL AND attack_type != ''
+           GROUP BY attack_type ORDER BY count DESC LIMIT 15""",
+        (cutoff,)
+    ).fetchall()
+    by_rule_id = [{"rule_id": r["rule_id"], "count": r["count"]} for r in type_rows]
+
     conn.close()
-    return {"hours": hours, "distribution": [dict(r) for r in rows]}
+    return {
+        "hours":       hours,
+        "by_severity": by_severity,
+        "by_track":    by_track,
+        "by_rule_id":  by_rule_id,
+    }
 
 @app.get("/api/clients")
 async def list_clients(request: Request):
@@ -480,11 +602,32 @@ async def status(request: Request):
     _require_session(request)
     now  = time.time()
     conn = _get_conn()
+
     total_alerts = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
     all_clients  = conn.execute("SELECT last_seen FROM clients").fetchall()
     online_count = sum(1 for c in all_clients if (now - c["last_seen"]) < OFFLINE_AFTER_SECS)
+
+    # FL model info
+    fl_row = conn.execute(
+        "SELECT round, version, client_count, updated_at FROM fl_models WHERE track=2 ORDER BY round DESC LIMIT 1"
+    ).fetchone()
+    fl_model = dict(fl_row) if fl_row else None
+
+    # Pending FL updates (submitted but not yet aggregated)
+    fl_pending = conn.execute(
+        "SELECT COUNT(*) FROM fl_updates WHERE base_round >= (SELECT COALESCE(MAX(round),0) FROM fl_models WHERE track=2)"
+    ).fetchone()[0]
+
     conn.close()
-    return {"server_time": now, "total_alerts": total_alerts, "online_clients": online_count, "total_clients": len(all_clients)}
+    return {
+        "server_time":        now,
+        "total_alerts":       total_alerts,
+        "online_clients":     online_count,
+        "total_clients":      len(all_clients),
+        "fl_model":           fl_model,
+        "fl_pending_updates": fl_pending,
+        "fl_min_clients":     MIN_FL_CLIENTS,
+    }
 
 @app.post("/login")
 async def login(request: Request):
@@ -500,7 +643,7 @@ async def login(request: Request):
 async def dashboard():
     index = UI_DIR / "index.html"
     if index.exists(): return FileResponse(str(index))
-    return JSONResponse({"status": "FLARE v0.4 server running"})
+    return JSONResponse({"status": "FLARE v0.6 server running"})
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Network interface discovery + LAN beacon
@@ -560,19 +703,44 @@ def _broadcast_presence(advertised_ip: str, port: int, stop_event: threading.Eve
         except Exception: pass
         stop_event.wait(BEACON_INTERVAL_S)
 
+def _cert_covers_ip(cert_path: Path, ip: str) -> bool:
+    """Return True if the server cert's SAN already includes the given IP."""
+    try:
+        import ipaddress as _ip
+        from cryptography import x509 as _x509
+        cert = _x509.load_pem_x509_certificate(cert_path.read_bytes())
+        san  = cert.extensions.get_extension_for_class(_x509.SubjectAlternativeName)
+        target = _ip.IPv4Address(ip)
+        return any(
+            isinstance(n, _x509.IPAddress) and n.value == target
+            for n in san.value
+        )
+    except Exception:
+        return True  # don't regenerate if we can't parse
+
 def _ensure_pki(advertised_ip: str) -> bool:
     cert_path = Path(TLS_CERT)
     key_path  = Path(TLS_KEY)
     ca_path   = Path(TLS_CA)
     ca_key    = ca_path.with_suffix(".key")
-    if not cert_path.exists() or not key_path.exists() or not ca_path.exists():
+
+    needs_regen = (
+        not cert_path.exists() or not key_path.exists() or not ca_path.exists()
+        or (advertised_ip and not _cert_covers_ip(cert_path, advertised_ip))
+    )
+
+    if needs_regen:
+        if cert_path.exists() and advertised_ip and not _cert_covers_ip(cert_path, advertised_ip):
+            log.warning("Server IP %s not in cert SAN — regenerating server cert", advertised_ip)
+            cert_path.unlink(missing_ok=True)
+            key_path.unlink(missing_ok=True)
         try:
             sys.path.insert(0, str(ROOT))
             import generate_pki
             ca_key_obj, ca_cert_obj = generate_pki.generate_ca(ca_path, ca_key)
             generate_pki.generate_server_cert(cert_path, key_path, ca_key_obj, ca_cert_obj)
         except Exception as e:
-            pass
+            log.error("PKI generation failed: %s", e)
     return cert_path.exists() and key_path.exists() and ca_path.exists()
 
 if __name__ == "__main__":
@@ -589,7 +757,7 @@ if __name__ == "__main__":
         _beacon_stop.clear()
         threading.Thread(target=_broadcast_presence, args=(advertised_ip, args.port, _beacon_stop), daemon=True).start()
 
-    print(f"\n  FLARE v0.4 Server\n    advertised : https://{advertised_ip}:{args.port}\n")
+    print(f"\n  FLARE v0.6 Server\n    advertised : https://{advertised_ip}:{args.port}\n")
     try:
         # CRITICAL FIX: Changed ssl_cert_reqs from CERT_REQUIRED (2) to CERT_OPTIONAL (1).
         # This prevents the mTLS chicken-and-egg lock out where the client can't hit /api/provision to get a cert.

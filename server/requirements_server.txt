@@ -1,4 +1,4 @@
-# FLARE v0.4 — Server dependencies
+﻿# FLARE v0.6 — Server dependencies
 # Install with: pip install -r requirements_server.txt
 #
 # Python 3.10+ required

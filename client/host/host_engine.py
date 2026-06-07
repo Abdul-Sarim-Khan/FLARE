@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
-FLARE v0.4 - Host Rule Engine
+FLARE v0.6 - Host Rule Engine
 ────────────────────────────
 Subscribes to Windows Event Log channels in real-time, parses event XML,
 runs ALL_RULES from rules.py, and queues AlertEvent proto messages.
@@ -265,7 +265,8 @@ _SUBSCRIPTIONS: dict[str, set] = {
         4756,   # Member added to universal security group
         4768,   # Kerberos AS request (AS-REP roasting)
         4769,   # Kerberos service ticket (Kerberoasting)
-        5156,   # Filtering Platform: outbound connection allowed (IOC IP match)
+        5156,   # Filtering Platform: connection permitted (IOC IP + port scan)
+        5157,   # Filtering Platform: connection blocked  (port scan — closed ports)
     },
     "System": {
         7045,   # New service installed

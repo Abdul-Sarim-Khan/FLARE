@@ -1,4 +1,4 @@
-param([string]$FlareRoot = $PSScriptRoot, [string]$PythonExe = "python")
+﻿param([string]$FlareRoot = $PSScriptRoot, [string]$PythonExe = "python")
 $ErrorActionPreference = "SilentlyContinue"
 
 $identity  = [System.Security.Principal.WindowsIdentity]::GetCurrent()
@@ -12,7 +12,18 @@ if (-not $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Adm
 function Write-Step { param($msg) Write-Host "`n  [+] $msg" -ForegroundColor Cyan }
 function Write-OK   { param($msg) Write-Host "      OK  $msg" -ForegroundColor Green }
 
-Write-Host "`n  FLARE v0.4 - Server Uninstaller (Dependencies Preserved)" -ForegroundColor White
+Write-Host "`n  FLARE v0.6 - Server Uninstaller (Dependencies Preserved)" -ForegroundColor White
+
+Write-Step "Stopping server agent service (FLAREServerAgent)"
+$svcAgent = Get-Service -Name "FLAREServerAgent" -ErrorAction SilentlyContinue
+if ($svcAgent) {
+    sc.exe stop "FLAREServerAgent" 2>&1 | Out-Null
+    Start-Sleep -Milliseconds 1500
+    sc.exe delete "FLAREServerAgent" 2>&1 | Out-Null
+    Write-OK "FLAREServerAgent service stopped and deleted"
+} else {
+    Write-OK "FLAREServerAgent service not installed - skipping"
+}
 
 Write-Step "Stopping running server processes"
 Get-WmiObject Win32_Process -Filter "Name='python.exe' OR Name='python3.exe'" -ErrorAction SilentlyContinue | ForEach-Object {

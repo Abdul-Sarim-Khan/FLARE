@@ -1,4 +1,4 @@
-# FLARE v0.4 - Shared configuration helpers
+﻿# FLARE v0.6 - Shared configuration helpers
 # Dot-sourced by 3_configure.ps1.
 # Do NOT run this file directly.
 

@@ -1,5 +1,5 @@
 // FLARE — Federated Log Analysis and Response Engine
-// Proto schema v0.4  |  Flare-Final-V2
+// Proto schema v0.6  |  Flare-Final-V2
 //
 // Message flow:
 //
@@ -53,7 +53,7 @@ enum Track {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Runner-up prediction — only used for future multi-class network models.
-// Empty in v0.4 for both tracks (host is rule-based, network is binary).
+// Empty in v0.6 for both tracks (host is rule-based, network is binary).
 message Prediction {
   string label      = 1;
   float  confidence = 2;
@@ -85,7 +85,7 @@ message AlertEvent {
   string window_end   = 10;  // ISO-8601 UTC
   int32  event_count  = 11;  // events (host) or flows (network) in window
 
-  // Runner-up predictions. Reserved for future use, empty in v0.4.
+  // Runner-up predictions. Reserved for future use, empty in v0.6.
   repeated Prediction top3 = 12;
 
   // ── Evidence ──────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ message AlertEvent {
 
   // MITRE ATT&CK technique ID.
   // Examples: "T1558.003" (Kerberoasting), "T1059.001" (PowerShell)
-  // Empty for network track in v0.4.
+  // Empty for network track in v0.6.
   string mitre_id = 15;
 
   // MITRE ATT&CK tactic name (human readable).

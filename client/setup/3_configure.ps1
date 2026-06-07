@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$FlareRoot = (Split-Path -Parent $PSScriptRoot),
     [string]$PythonExe = "python",
     [switch]$NoExit
@@ -15,19 +15,19 @@ if (-not $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Adm
 
 . "$PSScriptRoot\config_helpers.ps1"
 
-Write-Host "`n  FLARE v0.4 - Agent Configuration" -ForegroundColor White
+Write-Host "`n  FLARE v0.6 - Agent Configuration" -ForegroundColor White
 $certsDir = Join-Path $FlareRoot "certs"
 if (-not (Test-Path $certsDir)) { New-Item -ItemType Directory -Path $certsDir -Force | Out-Null }
 
 # ---------------------------------------------------------------------------
 # STEP 1: Select Network Interface & Auto-Discover Server
 # ---------------------------------------------------------------------------
-$ips = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object InterfaceAlias -notmatch 'Loopback'
-if (-not $ips) {
+$ips = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceAlias -notmatch 'Loopback' })
+if ($ips.Count -eq 0) {
     $selectedIp = "0.0.0.0"
 } else {
     Write-Host "`n  Select network interface to listen for the server beacon:" -ForegroundColor Cyan
-    for ($i=0; $i -lt $ips.Count; $i++) {
+    for ($i = 0; $i -lt $ips.Count; $i++) {
         Write-Host "    [$($i+1)] $($ips[$i].IPAddress)  ($($ips[$i].InterfaceAlias))"
     }
     $choice = Read-Host "  Choice [1]"

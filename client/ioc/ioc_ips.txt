@@ -1,4 +1,4 @@
-# FLARE v0.4 - Malicious IP IOC List
+﻿# FLARE v0.6 - Malicious IP IOC List
 # ──────────────────────────────────────────────────────────────────────────────
 # Format:
 #   1.2.3.4                 exact IPv4 match

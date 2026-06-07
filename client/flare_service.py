@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
-FLARE v0.4 — Windows Service Wrapper
+FLARE v0.6 — Windows Service Wrapper
 ────────────────────────────────────
 Wraps flare_agent.run() as a proper Windows service using pywin32 so the
 agent starts automatically at boot, runs as SYSTEM, and survives logout.
@@ -14,7 +14,7 @@ Usage (run as Administrator):
     python flare_service.py status      Print current service state
     python flare_service.py debug       Run in foreground (Ctrl-C to stop)
 
-After install, the service also appears in services.msc as "FLARE v0.4 Agent".
+After install, the service also appears in services.msc as "FLARE v0.6 Agent".
 
 Configuration:
     The service inherits all Machine-scope environment variables set by
@@ -45,9 +45,9 @@ if str(_SVC_DIR) not in sys.path:
 
 # ── Service constants ─────────────────────────────────────────────────────────
 SERVICE_NAME         = "FLAREAgent"
-SERVICE_DISPLAY_NAME = "FLARE v0.4 Endpoint Agent"
+SERVICE_DISPLAY_NAME = "FLARE v0.6 Endpoint Agent"
 SERVICE_DESCRIPTION  = (
-    "FLARE v0.4 federated endpoint detection agent. "
+    "FLARE v0.6 federated endpoint detection agent. "
     "Monitors Windows Event Logs and network flows for threats."
 )
 LOG_FILE   = _SVC_DIR / "logs" / "flare_agent.log"
@@ -310,7 +310,7 @@ def _print_status():
 
 def _print_usage():
     print(f"""
-  FLARE v0.4 Windows Service  —  {SERVICE_DISPLAY_NAME}
+  FLARE v0.6 Windows Service  —  {SERVICE_DISPLAY_NAME}
 
   Usage (run as Administrator):
     python flare_service.py install     Install the service

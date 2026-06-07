@@ -15,6 +15,22 @@ if (Test-Path $postInstallScript) {
     Write-Host "      WARN pywin32_postinstall.py not found. Service might fail if DLLs are missing." -ForegroundColor Yellow
 }
 
+Write-Host "`n[+] Enabling Windows audit policies for FLARE host detection..." -ForegroundColor Cyan
+# Filtering Platform Connection: generates Event 5156 (allowed) and 5157 (blocked)
+# for every inbound TCP/UDP connection attempt. Required for port scan detection.
+$auditResults = @(
+    @{ sub = "Filtering Platform Connection"; desc = "Port scan detection (Event 5156/5157)" },
+    @{ sub = "Filtering Platform Packet Drop";  desc = "Packet-level drop visibility (Event 5152)" }
+)
+foreach ($a in $auditResults) {
+    $result = auditpol /set /subcategory:$($a.sub) /success:enable /failure:enable 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "      OK  $($a.desc)" -ForegroundColor Green
+    } else {
+        Write-Host "      WARN $($a.desc) - $result" -ForegroundColor Yellow
+    }
+}
+
 Write-Host "`n[+] Creating required folders..." -ForegroundColor Cyan
 New-Item -ItemType Directory -Path (Join-Path $FlareRoot "certs") -Force -ErrorAction SilentlyContinue | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $FlareRoot "logs") -Force -ErrorAction SilentlyContinue | Out-Null

@@ -1,6 +1,6 @@
-<#
+﻿<#
 .SYNOPSIS
-    FLARE v0.4 - Step 2b: Install the FLARE server.
+    FLARE v0.6 - Step 2b: Install the FLARE server.
 #>
 
 param(
@@ -38,7 +38,7 @@ function Write-Fail {
 }
 
 Write-Host ""
-Write-Host "  FLARE v0.4 - Server Setup" -ForegroundColor White
+Write-Host "  FLARE v0.6 - Server Setup" -ForegroundColor White
 Write-Host "  Repo root : $FlareRoot"
 Write-Host "  Data dir  : $DataDir"
 Write-Host "  Port      : $ServerPort"
@@ -106,7 +106,7 @@ if (Test-Path $envFile) {
     Write-Warn "$envFile already exists - not overwriting"
 } else {
     $envContent = @(
-        "# FLARE v0.4 Server Configuration",
+        "# FLARE v0.6 Server Configuration",
         "# Apply with: setup\2_configure.ps1 -Mode server",
         "",
         "FLARE_PORT=$ServerPort",
@@ -170,7 +170,7 @@ if ($OpenFirewall) {
             -LocalPort   $ServerPort `
             -Action      Allow `
             -Profile     Any `
-            -Description "Allow FLARE agents to reach the FLARE v0.4 server" |
+            -Description "Allow FLARE agents to reach the FLARE v0.6 server" |
             Out-Null
         Write-OK "Inbound firewall rule created (TCP port $ServerPort)"
     }

@@ -1,6 +1,6 @@
-<#
+﻿<#
 .SYNOPSIS
-    FLARE v0.4 - Step 1: Grant OS privileges required by the agent.
+    FLARE v0.6 - Step 1: Grant OS privileges required by the agent.
 
 .DESCRIPTION
     Runs ONCE on each endpoint that will host flare_agent.py.
@@ -58,7 +58,7 @@ function Write-Warn { param($msg) Write-Host "      !!  $msg" -ForegroundColor Y
 function Write-Fail { param($msg) Write-Host "      ERR $msg" -ForegroundColor Red; if (-not $NoExit) { Read-Host "`nPress Enter to exit" }; exit 1 }
 
 Write-Host ""
-Write-Host "  FLARE v0.4 - Privilege Grant" -ForegroundColor White
+Write-Host "  FLARE v0.6 - Privilege Grant" -ForegroundColor White
 Write-Host "  Target account : $Account"
 Write-Host "  Working dir    : $FlareDir"
 
@@ -239,7 +239,7 @@ try {
 # ---------------------------------------------------------------------------
 
 Write-Host ""
-Write-Host "  NOTE  pktmon (network packet capture) requires the agent process" -ForegroundColor Yellow
+Write-Host "  NOTE  Network capture requires the agent to run as Administrator" -ForegroundColor Yellow
 Write-Host "        to run as Administrator or NT AUTHORITY\SYSTEM."            -ForegroundColor Yellow
 Write-Host "        The Windows Service runs as SYSTEM by default."             -ForegroundColor Yellow
 Write-Host ""

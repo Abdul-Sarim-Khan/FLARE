@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-FLARE v0.4 - Agent Orchestrator
+FLARE v0.6 - Agent Orchestrator
 ───────────────────────────────
 Main entry point for the FLARE endpoint agent. Starts and supervises:
 
+  • Flow collector    — live packet capture via CICFlowMeter fork (background thread)
   • Host rule engine  — real-time Windows Event Log subscriptions (19 rules + IOC)
-  • Network inference — MLP classifier on pktmon flow CSV (every 30 s)
+  • Network inference — MLP classifier on flow CSV (every 30 s)
   • Alert sender      — batches AlertEvent protos -> HTTP POST with retry/buffer
   • Heartbeat         — status ping every 60 s
   • FL model poll     — checks for updated global network model from server
@@ -16,13 +17,15 @@ Configuration (all via environment variables):
   FLARE_CA_CERT       Path to FLARE CA certificate (PEM)      (copy ca.crt from server)
   FLARE_CLIENT_CERT   Path to this agent's client cert (PEM)  (copy client.crt from server bundle)
   FLARE_CLIENT_KEY    Path to this agent's client key (PEM)   (copy client.key from server bundle)
-  FLARE_NET_CSV       Path to pktmon flow CSV                  (default: local net_flows.csv)
+  FLARE_NET_CSV       Path to flow CSV written by collector    (default: local net_flows.csv)
+  FLARE_NET_IFACE     Network interface for live capture       (default: scapy default interface)
   FLARE_FL_TEST_MODE  Set to "1" for fast FL timing            (default: 0)
   FLARE_LOG_LEVEL     Logging level: DEBUG/INFO/WARNING        (default: INFO)
 
 Run:
     python flare_agent.py
     python flare_agent.py --server https://192.168.1.10:7331
+    python flare_agent.py --interface "Wi-Fi"
 """
 
 import argparse
@@ -31,6 +34,7 @@ import json
 import logging
 import os
 import queue
+import signal
 import socket
 import struct
 import sys
@@ -42,9 +46,12 @@ from pathlib import Path
 from typing import Optional
 
 # ── Path setup ────────────────────────────────────────────────────────────────
-_AGENT_DIR = Path(__file__).parent
+_AGENT_DIR    = Path(__file__).parent
+_CICFLOW_DIR  = _AGENT_DIR.parent / "CICFlowMeter"   # Flare v0.6\CICFlowMeter
 if str(_AGENT_DIR) not in sys.path:
     sys.path.insert(0, str(_AGENT_DIR))
+if str(_CICFLOW_DIR) not in sys.path:
+    sys.path.insert(0, str(_CICFLOW_DIR))
 
 from proto import log_schema_pb2 as pb
 
@@ -60,7 +67,7 @@ log = logging.getLogger("flare_agent")
 # Version + paths
 # ─────────────────────────────────────────────────────────────────────────────
 
-AGENT_VERSION  = "0.4.0"
+AGENT_VERSION  = "0.6.0"
 _NET_MODEL_PATH = _AGENT_DIR / "network" / "models" / "network_mlp.pkl"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -73,7 +80,9 @@ _NET_MODEL_PATH = _AGENT_DIR / "network" / "models" / "network_mlp.pkl"
 
 _ENV_FILE = _AGENT_DIR / "agent.env"
 if _ENV_FILE.exists():
-    for _line in _ENV_FILE.read_text(encoding="utf-8").splitlines():
+    # utf-8-sig strips the UTF-8 BOM that PowerShell's Set-Content -Encoding UTF8
+    # writes at the start of the file, which would otherwise corrupt the first key.
+    for _line in _ENV_FILE.read_text(encoding="utf-8-sig").splitlines():
         _line = _line.strip()
         if _line and not _line.startswith("#") and "=" in _line:
             _k, _, _v = _line.partition("=")
@@ -83,7 +92,7 @@ if _ENV_FILE.exists():
 
 # Resolve any relative paths (from agent.env) relative to the agent directory.
 # This makes the project portable: no hardcoded absolute paths are needed.
-for _path_key in ("FLARE_CA_CERT", "FLARE_CLIENT_CERT", "FLARE_CLIENT_KEY", "FLARE_NET_CSV"):
+for _path_key in ("FLARE_CA_CERT", "FLARE_CLIENT_CERT", "FLARE_CLIENT_KEY", "FLARE_NET_CSV", "FLARE_NET_IFACE"):
     _path_val = os.environ.get(_path_key, "").strip()
     if _path_val and not os.path.isabs(_path_val):
         os.environ[_path_key] = str((_AGENT_DIR / _path_val).resolve())
@@ -94,6 +103,7 @@ for _path_key in ("FLARE_CA_CERT", "FLARE_CLIENT_CERT", "FLARE_CLIENT_KEY", "FLA
 
 SERVER_URL   = os.environ.get("FLARE_SERVER_URL",   "https://localhost:7331").rstrip("/")
 NET_CSV      = os.environ.get("FLARE_NET_CSV",      str(_AGENT_DIR / "net_flows.csv"))
+NET_IFACE    = os.environ.get("FLARE_NET_IFACE",    "").strip() or None
 FL_TEST      = os.environ.get("FLARE_FL_TEST_MODE", "0") == "1"
 CA_CERT      = os.environ.get("FLARE_CA_CERT",      "").strip()
 CLIENT_CERT  = os.environ.get("FLARE_CLIENT_CERT",  "").strip()
@@ -238,6 +248,24 @@ def _discover_server_via_beacon(timeout_s: float = 5.0) -> Optional[str]:
         except Exception:
             pass
     return None
+
+
+def _server_reachable(url: str, timeout_s: float = 3.0) -> bool:
+    """TCP-connect to the server host:port to check basic reachability.
+
+    Does not perform a TLS handshake — just confirms the IP is routable and
+    the port is open.  Returns True if the connection succeeds within timeout.
+    """
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        host   = parsed.hostname or "localhost"
+        port   = parsed.port or 7331
+        s = socket.create_connection((host, port), timeout=timeout_s)
+        s.close()
+        return True
+    except OSError:
+        return False
 
 
 def _get_outbound_ip() -> str:
@@ -531,13 +559,22 @@ class HeartbeatThread(threading.Thread):
     """
     Sends a Heartbeat proto to /api/heartbeat every HEARTBEAT_INTERVAL_SECS.
     Carries agent version, uptime, track health, and rule-engine counters.
+
+    If HEARTBEAT_REDISCOVER_AFTER consecutive heartbeats fail, the thread
+    attempts beacon-based rediscovery of the server's new IP (handles the case
+    where the server machine received a new DHCP lease while the agent was
+    running).
     """
 
-    def __init__(self, stop_event: threading.Event):
+    REDISCOVER_AFTER = 3   # consecutive failures before beacon rediscovery
+
+    def __init__(self, stop_event: threading.Event, no_beacon: bool = False):
         super().__init__(name="Heartbeat", daemon=True)
-        self._stop  = stop_event
-        self._cid   = _client_id()
-        self._cip   = _client_ip()
+        self._stop       = stop_event
+        self._cid        = _client_id()
+        self._cip        = _client_ip()
+        self._no_beacon  = no_beacon
+        self._fail_count = 0
 
     def run(self):
         log.info("Heartbeat: started (interval=%ds)", HEARTBEAT_INTERVAL_SECS)
@@ -551,6 +588,32 @@ class HeartbeatThread(threading.Thread):
                 time.sleep(0.25)
             self._send()
 
+    def _try_rediscover(self):
+        """Listen for a beacon to find the server's new IP. Updates SERVER_URL
+        and the requests session in-place if a new address is found."""
+        global SERVER_URL
+        if self._no_beacon:
+            return
+        log.warning(
+            "Heartbeat: %d consecutive failures — server may have changed IP. "
+            "Listening for UDP beacon on port %d (5 s)…",
+            self._fail_count, BEACON_PORT,
+        )
+        discovered = _discover_server_via_beacon(timeout_s=5.0)
+        if discovered and discovered != SERVER_URL:
+            log.info(
+                "Heartbeat: server rediscovered at %s (was %s) — switching",
+                discovered, SERVER_URL,
+            )
+            SERVER_URL = discovered
+            if _HAS_REQUESTS:
+                _session.verify = CA_CERT if (CA_CERT and Path(CA_CERT).exists()) else True
+            self._fail_count = 0
+        elif discovered == SERVER_URL:
+            log.info("Heartbeat: beacon confirms server URL unchanged (%s) — will keep retrying", SERVER_URL)
+        else:
+            log.warning("Heartbeat: no beacon received — will keep retrying configured URL")
+
     def _send(self):
         hc = _get_host_counters()
 
@@ -558,7 +621,7 @@ class HeartbeatThread(threading.Thread):
             hat  = _host_alerts_total
             nat  = _net_alerts_total
             htok = _host_track_ok
-            # Fix 7: net_track_ok reflects both a successful worker start AND
+            # net_track_ok reflects both a successful worker start AND
             # that the CSV feed is currently present on disk.  A True startup
             # flag with a missing CSV gives a misleading "healthy" status.
             ntok = _net_track_ok and Path(NET_CSV).exists()
@@ -582,8 +645,12 @@ class HeartbeatThread(threading.Thread):
         if ok:
             log.debug("Heartbeat: sent (uptime=%ds host_alerts=%d net_alerts=%d)",
                       hb.uptime_seconds, hat, nat)
+            self._fail_count = 0
         else:
             log.warning("Heartbeat: delivery failed")
+            self._fail_count += 1
+            if self._fail_count >= self.REDISCOVER_AFTER:
+                self._try_rediscover()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -695,8 +762,24 @@ class FLPollThread(threading.Thread):
                 arr = np.array(lw.values, dtype=np.float32)
                 new_intercepts.append(arr)
 
+            # Guard: reject the update if the new weights have a different input
+            # dimension than the model was trained on.  A mismatch means the server
+            # is distributing a model from a different feature set (e.g. an older
+            # training run).  Applying it would silently corrupt the pkl and cause
+            # every subsequent inference to crash with a matmul shape error.
             if new_coefs:
-                mlp.coefs_      = new_coefs
+                expected_input_dim = mlp.coefs_[0].shape[0]
+                incoming_input_dim = new_coefs[0].shape[0]
+                if incoming_input_dim != expected_input_dim:
+                    log.error(
+                        "FL-Poll: REJECTED model update (round %d) — "
+                        "incoming weights expect %d input features but local model "
+                        "has %d. Server model was trained on a different feature set. "
+                        "Local model unchanged.",
+                        mu.round, incoming_input_dim, expected_input_dim,
+                    )
+                    return
+                mlp.coefs_ = new_coefs
             if new_intercepts:
                 mlp.intercepts_ = new_intercepts
 
@@ -787,13 +870,194 @@ def _parse_log_event_xml(xml_str: str) -> dict:
 # Main run loop
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run(stop_event: Optional[threading.Event] = None) -> None:
+def _start_flow_collector(csv_path: str, iface, stop_event: threading.Event) -> bool:
+    """
+    Start the CICFlowMeter-based flow collector as a silent background thread.
+    Writes completed flows in FLARE feature format to csv_path (append-safe).
+    Returns True if the collector thread was started, False if cicflowmeter_py
+    is unavailable (agent continues but network inference receives no new data).
+    """
+    import csv as _csv
+    import math
+
+    try:
+        from cicflowmeter_py.flow import Flow
+        from cicflowmeter_py.flow_generator import FlowGenerator
+        from cicflowmeter_py.reader import sniff_live
+    except ImportError as exc:
+        log.warning("Flow collector: cicflowmeter_py not found (%s) — capture disabled", exc)
+        return False
+
+    CIC_TO_FLARE = {
+        "Dst Port":          "DestinationPort",
+        "Flow Duration":     "FlowDurationMs",
+        "Tot Fwd Pkts":      "TotalFwdPackets",
+        "TotLen Fwd Pkts":   "TotalLenFwdPackets",
+        "Fwd Pkt Len Max":   "FwdPacketLenMax",
+        "Fwd Pkt Len Min":   "FwdPacketLenMin",
+        "Fwd Pkt Len Mean":  "FwdPacketLenMean",
+        "Fwd Pkt Len Std":   "FwdPacketLenStd",
+        "Bwd Pkt Len Max":   "BwdPacketLenMax",
+        "Bwd Pkt Len Min":   "BwdPacketLenMin",
+        "Bwd Pkt Len Mean":  "BwdPacketLenMean",
+        "Bwd Pkt Len Std":   "BwdPacketLenStd",
+        "Flow Byts/s":       "FlowBytesPerSec",
+        "Flow Pkts/s":       "FlowPacketsPerSec",
+        "Fwd Pkts/s":        "FwdPacketsPerSec",
+        "Bwd Pkts/s":        "BwdPacketsPerSec",
+        "Flow IAT Mean":     "FlowIATMean",
+        "Flow IAT Std":      "FlowIATStd",
+        "Flow IAT Max":      "FlowIATMax",
+        "Flow IAT Min":      "FlowIATMin",
+        "Fwd IAT Tot":       "FwdIATTotal",
+        "Fwd IAT Mean":      "FwdIATMean",
+        "Fwd IAT Std":       "FwdIATStd",
+        "Fwd IAT Max":       "FwdIATMax",
+        "Fwd IAT Min":       "FwdIATMin",
+        "Bwd IAT Tot":       "BwdIATTotal",
+        "Bwd IAT Mean":      "BwdIATMean",
+        "Bwd IAT Std":       "BwdIATStd",
+        "Bwd IAT Max":       "BwdIATMax",
+        "Bwd IAT Min":       "BwdIATMin",
+        "Pkt Len Min":       "MinPacketLength",
+        "Pkt Len Max":       "MaxPacketLength",
+        "FIN Flag Cnt":      "FINFlagCount",
+        "PSH Flag Cnt":      "PSHFlagCount",
+        "ACK Flag Cnt":      "ACKFlagCount",
+        "Init Fwd Win Byts": "InitWinBytesFwd",
+        "Init Bwd Win Byts": "InitWinBytesBwd",
+        "Pkt Size Avg":      "AveragePacketSize",
+    }
+    flare_features = list(CIC_TO_FLARE.values())
+    fork_header    = Flow.get_header().split(",")
+    col_idx        = {name: i for i, name in enumerate(fork_header)}
+
+    def _to_row(flow: Flow) -> dict:
+        vals = flow.dump_flow_features(label="No Label").split(",")
+        row  = {}
+        for cic_col, flare_col in CIC_TO_FLARE.items():
+            raw = vals[col_idx[cic_col]]
+            try:
+                v = float(raw)
+                if not math.isfinite(v):
+                    v = 0.0
+            except ValueError:
+                v = 0.0
+            row[flare_col] = v
+        return row
+
+    csv_p        = Path(csv_path)
+    write_header = not csv_p.exists()
+    fh           = open(csv_p, "a", newline="", encoding="utf-8")
+    writer       = _csv.DictWriter(fh, fieldnames=flare_features)
+    if write_header:
+        writer.writeheader()
+    lock  = threading.Lock()
+    total = [0]
+
+    def _on_flow(flow: Flow):
+        if flow.packet_count() <= 1:
+            return
+        row = _to_row(flow)
+        with lock:
+            writer.writerow(row)
+            fh.flush()
+            total[0] += 1
+
+    gen = FlowGenerator(on_flow_complete=_on_flow)
+
+    # Auto-detect interface if not explicitly configured
+    resolved_iface = iface
+    if not resolved_iface:
+        # Try scapy's own default first
+        try:
+            from scapy.config import conf as _scapy_conf
+            if _scapy_conf.iface:
+                resolved_iface = str(_scapy_conf.iface)
+        except Exception:
+            pass
+
+        # Fallback: find the interface whose IP matches the outbound route
+        if not resolved_iface:
+            try:
+                import socket as _socket
+                from scapy.all import get_if_list, get_if_addr
+                _s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+                _s.connect(("8.8.8.8", 80))
+                _local_ip = _s.getsockname()[0]
+                _s.close()
+                for _candidate in get_if_list():
+                    try:
+                        if get_if_addr(_candidate) == _local_ip:
+                            resolved_iface = _candidate
+                            break
+                    except Exception:
+                        pass
+            except Exception:
+                pass  # leave as None — scapy sniff will use its own default
+
+    def _capture():
+        log.info("Flow collector: capturing on '%s' -> %s", resolved_iface or "scapy-default", csv_p.name)
+        try:
+            sniff_live(
+                interface      = resolved_iface,
+                on_packet      = gen.add_packet,
+                stop_event     = stop_event,
+                flush_callback = gen.flush_timed_out,
+                flush_interval = 5.0,
+            )
+        except Exception as exc:
+            log.error("Flow collector: error: %s", exc)
+        finally:
+            gen.flush()
+            fh.close()
+            log.info("Flow collector: stopped (%d flows written)", total[0])
+
+    threading.Thread(target=_capture, name="FlowCollector", daemon=True).start()
+    return True
+
+
+def _send_goodbye_heartbeat() -> None:
+    """Send one final heartbeat with both track flags False so the server marks
+    this client offline immediately instead of waiting for the timeout."""
+    try:
+        with _counters_lock:
+            hat = _host_alerts_total
+            nat = _net_alerts_total
+        hc  = _get_host_counters()
+        hb  = pb.Heartbeat()
+        hb.client_id         = _client_id()
+        hb.timestamp         = _now_iso()
+        hb.client_ip         = _client_ip()
+        hb.agent_version     = AGENT_VERSION
+        hb.host_model_hash   = ""
+        hb.net_model_hash    = _model_hash(_NET_MODEL_PATH)
+        hb.uptime_seconds    = int(time.monotonic() - _agent_start_time)
+        hb.host_track_ok     = False
+        hb.net_track_ok      = False
+        hb.host_alerts_total = hat
+        hb.net_alerts_total  = nat
+        hb.ioc_matches_total = hc.get("ioc_matches", 0)
+        hb.rule_hits_total   = hc.get("rule_hits",   0)
+        _post("/api/heartbeat", _frame(hb.SerializeToString()))
+        log.info("Goodbye heartbeat sent — server will mark agent offline")
+    except Exception as exc:
+        log.debug("Goodbye heartbeat failed: %s", exc)
+
+
+def run(stop_event: Optional[threading.Event] = None,
+        no_net_capture: bool = False,
+        no_beacon: bool = False) -> None:
     """
     Start all agent subsystems and block until stop_event is set
     (or KeyboardInterrupt if running interactively).
 
     Args:
-        stop_event: External stop signal. If None, one is created internally.
+        stop_event:      External stop signal. If None, one is created internally.
+        no_net_capture:  If True, skip the flow collector and network inference
+                         (used on the server host to avoid capturing FLARE traffic).
+        no_beacon:       If True, disable beacon rediscovery in the heartbeat thread
+                         (used when --no-beacon was passed on the CLI).
     """
     global _host_track_ok, _net_track_ok, _agent_start_time
 
@@ -818,6 +1082,14 @@ def run(stop_event: Optional[threading.Event] = None) -> None:
     _raw_queue    = queue.Queue(maxsize=2000)
     tracking_q    = _TrackingQueue(_raw_queue)
 
+    # ── Start flow collector ──────────────────────────────────────────────────
+    if no_net_capture:
+        log.info("Flow collector: skipped (--no-net-capture)")
+    elif _start_flow_collector(NET_CSV, NET_IFACE, stop_event):
+        log.info("Flow collector: started (interface=%s)", NET_IFACE or "auto-detect")
+    else:
+        log.warning("Flow collector: disabled — set FLARE_NET_IFACE or check cicflowmeter_py install")
+
     # ── Start host rule engine ────────────────────────────────────────────────
     try:
         _start_host_engine(tracking_q, stop_event)
@@ -828,34 +1100,51 @@ def run(stop_event: Optional[threading.Event] = None) -> None:
         _host_track_ok = False
 
     # ── Start network inference ───────────────────────────────────────────────
-    try:
-        _start_net_infer(
-            tracking_q,
-            stop_event,
-            csv_path=NET_CSV,
-            interval_secs=NET_INFER_INTERVAL_SECS,
-            reload_event=reload_event,
-        )
-        _net_track_ok = True
-        log.info("Network inference: started (csv=%s)", NET_CSV)
-    except Exception as exc:
-        log.error("Network inference: failed to start: %s", exc)
+    if no_net_capture:
+        log.info("Network inference: skipped (--no-net-capture)")
         _net_track_ok = False
+    else:
+        try:
+            _start_net_infer(
+                tracking_q,
+                stop_event,
+                csv_path=NET_CSV,
+                interval_secs=NET_INFER_INTERVAL_SECS,
+                reload_event=reload_event,
+            )
+            _net_track_ok = True
+            log.info("Network inference: started (csv=%s)", NET_CSV)
+        except Exception as exc:
+            log.error("Network inference: failed to start: %s", exc)
+            _net_track_ok = False
 
     # ── Start supporting threads ──────────────────────────────────────────────
     AlertSenderThread(_raw_queue, stop_event).start()
-    HeartbeatThread(stop_event).start()
+    HeartbeatThread(stop_event, no_beacon=no_beacon).start()
     FLPollThread(stop_event, reload_event).start()
 
     log.info("All subsystems running — waiting for stop signal")
 
     # ── Block until stop ──────────────────────────────────────────────────────
+    # Poll in 1-second ticks so Windows delivers KeyboardInterrupt promptly
+    # (a bare stop_event.wait() can swallow Ctrl+C on Windows with Npcap threads).
+    # signal.signal() only works in the main thread.
+    # When run as a Windows service (flare_service.py), the agent runs in a
+    # worker thread — guard so the service doesn't crash on startup.
+    if threading.current_thread() is threading.main_thread():
+        def _handle_sigint(sig, frame):
+            log.info("SIGINT received — shutting down")
+            stop_event.set()
+        signal.signal(signal.SIGINT, _handle_sigint)
+
     try:
-        stop_event.wait()
+        while not stop_event.wait(timeout=1):
+            pass
     except KeyboardInterrupt:
         log.info("KeyboardInterrupt — shutting down")
         stop_event.set()
 
+    _send_goodbye_heartbeat()
     log.info("FLARE agent stopped.")
 
 
@@ -875,34 +1164,66 @@ def main():
     global SERVER_URL, NET_CSV, FL_TEST, CA_CERT, CLIENT_CERT, CLIENT_KEY, _TLS_MODE
 
     parser = argparse.ArgumentParser(
-        description="FLARE v0.4 — Federated Log Analysis and Response Engine (Agent)"
+        description="FLARE v0.6 — Federated Log Analysis and Response Engine (Agent)"
     )
-    parser.add_argument("--server",  default=None,
+    parser.add_argument("--server",    default=None,
                         help="Server URL (default: FLARE_SERVER_URL env or auto-discover via beacon)")
-    parser.add_argument("--net-csv", default=None,
-                        help="Path to pktmon CSV (default: local directory net_flows.csv)")
+    parser.add_argument("--interface", "-i", default=None, metavar="IFACE",
+                        help="Network interface for live capture (default: FLARE_NET_IFACE env or scapy default)")
+    parser.add_argument("--net-csv",   default=None,
+                        help="Path to flow CSV (default: local directory net_flows.csv)")
     parser.add_argument("--test-fl", action="store_true",
                         help="Enable FL test mode (5 min intervals)")
     parser.add_argument("--log-level", default=os.environ.get("FLARE_LOG_LEVEL","INFO"),
                         help="Log level DEBUG/INFO/WARNING (default: INFO)")
     parser.add_argument("--no-beacon", action="store_true",
                         help="Skip server auto-discovery via UDP beacon")
+    parser.add_argument("--no-net-capture", action="store_true",
+                        help="Disable flow collector and network inference (use on the server host to avoid feedback loop)")
     args = parser.parse_args()
 
     _setup_logging(args.log_level)
 
     if args.net_csv:
         NET_CSV = args.net_csv
+    if args.interface:
+        NET_IFACE = args.interface
     if args.test_fl:
         FL_TEST = True
 
     # ── Server URL resolution ─────────────────────────────────────────────────
-    # Priority: --server CLI > env var > beacon discovery > fail
+    # Priority: --server CLI > env var (if reachable) > beacon > env var anyway
     if args.server:
         SERVER_URL = args.server.rstrip("/")
         log.info("server URL : %s  (from --server)", SERVER_URL)
     elif SERVER_URL and "localhost" not in SERVER_URL and "127.0.0.1" not in SERVER_URL:
-        log.info("server URL : %s  (from config)", SERVER_URL)
+        # URL is configured — probe it before committing
+        if _server_reachable(SERVER_URL):
+            log.info("server URL : %s  (from config, reachable)", SERVER_URL)
+        elif not args.no_beacon:
+            # Configured URL is unreachable — server IP may have changed
+            log.warning(
+                "Configured server %s is unreachable — "
+                "listening for UDP beacon on port %d (5 s) to rediscover…",
+                SERVER_URL, BEACON_PORT,
+            )
+            discovered = _discover_server_via_beacon(timeout_s=5.0)
+            if discovered:
+                SERVER_URL = discovered
+                log.info("server URL : %s  (rediscovered via beacon — server IP changed)", SERVER_URL)
+                if _HAS_REQUESTS:
+                    _session.verify = CA_CERT if (CA_CERT and Path(CA_CERT).exists()) else True
+            else:
+                log.warning(
+                    "Beacon rediscovery failed — keeping configured URL %s and will retry later.",
+                    SERVER_URL,
+                )
+        else:
+            log.warning(
+                "Configured server %s is unreachable and beacon is disabled (--no-beacon). "
+                "Will retry on each heartbeat.",
+                SERVER_URL,
+            )
     else:
         # URL not configured (or still default localhost) — try beacon
         if not args.no_beacon:
@@ -911,11 +1232,8 @@ def main():
             if discovered:
                 SERVER_URL = discovered
                 log.info("server URL : %s  (auto-discovered via beacon)", SERVER_URL)
-
-                # Rebuild the requests session now that we know the server URL
                 if _HAS_REQUESTS:
                     _session.verify = CA_CERT if (CA_CERT and Path(CA_CERT).exists()) else True
-
             else:
                 log.warning("No server beacon received.")
                 if "localhost" in SERVER_URL:
@@ -962,7 +1280,7 @@ def main():
 
     log.info("network    : local IP %s  ->  server %s", outbound_ip, SERVER_URL)
 
-    run()
+    run(no_net_capture=args.no_net_capture, no_beacon=args.no_beacon)
 
 
 if __name__ == "__main__":

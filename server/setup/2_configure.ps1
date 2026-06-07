@@ -1,12 +1,13 @@
-<#
+﻿<#
 .SYNOPSIS
-    FLARE v0.4 - Step 3: Apply runtime configuration to this machine.
+    FLARE v0.6 - Step 3: Apply runtime configuration to this machine.
 #>
 
 param(
     [ValidateSet("agent","server")]
     [string]$Mode          = "server",
     [string]$FlareRoot     = (Split-Path -Parent $PSScriptRoot),
+    [string]$PythonExe     = "python",
     [switch]$NonInteractive,
     [switch]$NoExit
 )
@@ -27,7 +28,7 @@ if (-not $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Adm
 . "$PSScriptRoot\config_helpers.ps1"
 
 Write-Host ""
-Write-Host "  FLARE v0.4 - Configuration ($Mode mode)" -ForegroundColor White
+Write-Host "  FLARE v0.6 - Configuration ($Mode mode)" -ForegroundColor White
 
 if ($Mode -eq "agent") {
     $envFilePath = Join-Path $FlareRoot "agent.env"
@@ -91,7 +92,7 @@ Set-MachineEnv "FLARE_CA_CERT"             $relCaCert
 
 Write-Step "Updating $envFilePath"
 $envContent = @(
-    "# FLARE v0.4 Server Configuration",
+    "# FLARE v0.6 Server Configuration",
     "FLARE_DASHBOARD_USER=$dashUser",
     "FLARE_DASHBOARD_PASS_HASH=$passHash",
     "FLARE_PORT=$serverPort",
@@ -114,7 +115,7 @@ if (-not (Test-Path $adminP12)) {
     if (Test-Path $pkiScript) {
         $savedEAP = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
-        $pkiOut = & python $pkiScript --client admin --p12-pass flare 2>&1
+        $pkiOut = & $PythonExe $pkiScript --client admin --p12-pass flare 2>&1
         $ErrorActionPreference = $savedEAP
         if ($LASTEXITCODE -eq 0) { Write-OK "Admin certificate bundle created" }
     }

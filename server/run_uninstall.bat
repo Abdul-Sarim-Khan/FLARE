@@ -1,5 +1,5 @@
-@echo off
-:: FLARE v0.4 - Server Uninstall Launcher
+﻿@echo off
+:: FLARE v0.6 - Server Uninstall Launcher
 :: Bypasses PowerShell execution policy and runs the server uninstaller.
 :: Double-click this file or run it from any command prompt.
 

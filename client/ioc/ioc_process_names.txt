@@ -1,4 +1,4 @@
-# FLARE v0.4 - Known-Bad Process Names IOC List
+﻿# FLARE v0.6 - Known-Bad Process Names IOC List
 # ──────────────────────────────────────────────────────────────────────────────
 # Format:
 #   process.exe             exact match (case-insensitive)

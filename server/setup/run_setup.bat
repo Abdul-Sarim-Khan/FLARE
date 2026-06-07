@@ -1,5 +1,5 @@
-@echo off
-:: FLARE v0.4 - Server Setup Launcher
+﻿@echo off
+:: FLARE v0.6 - Server Setup Launcher
 :: Bypasses PowerShell execution policy and runs the full server setup sequence.
 :: Double-click this file or run it from any command prompt.
 

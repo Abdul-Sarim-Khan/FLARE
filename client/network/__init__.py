@@ -1,1 +1,1 @@
-# FLARE v0.4 — network inference package
+﻿# FLARE v0.6 — network inference package

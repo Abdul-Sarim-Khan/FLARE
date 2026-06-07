@@ -1,4 +1,4 @@
-# FLARE v0.4 - Suspicious Process Chain IOC List
+﻿# FLARE v0.6 - Suspicious Process Chain IOC List
 # ──────────────────────────────────────────────────────────────────────────────
 # Format:
 #   parent.exe -> child.exe        # reason / attack technique

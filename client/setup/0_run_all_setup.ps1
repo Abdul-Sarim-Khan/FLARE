@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Runs all client setup scripts sequentially with Administrator privileges.
 #>
@@ -16,7 +16,7 @@ if (-not $p.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrat
 $Root = $PSScriptRoot
 
 Write-Host "===============================================" -ForegroundColor Cyan
-Write-Host "   FLARE v0.4 - Client Setup Runner" -ForegroundColor Red
+Write-Host "   FLARE v0.6 - Client Setup Runner" -ForegroundColor Red
 Write-Host "===============================================" -ForegroundColor Cyan
 Write-Host ""
 

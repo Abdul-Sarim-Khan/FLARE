@@ -1,1 +1,1 @@
-# FLARE v0.4 — host rule engine package
+﻿# FLARE v0.6 — host rule engine package

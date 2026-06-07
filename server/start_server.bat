@@ -1,5 +1,5 @@
-@echo off
-:: FLARE v0.4 - Start Server
+﻿@echo off
+:: FLARE v0.6 - Start Server
 :: Port is read from the FLARE_PORT environment variable (set by setup\2_configure.ps1).
 :: Default if not configured: 7331
 cd /d "%~dp0"
@@ -7,7 +7,7 @@ cd /d "%~dp0"
 if "%FLARE_PORT%"=="" set FLARE_PORT=7331
 
 echo.
-echo   FLARE v0.4 Server
+echo   FLARE v0.6 Server
 echo   Port: %FLARE_PORT%
 echo   You will be prompted to pick the network interface to advertise.
 echo   The dashboard will open in your browser automatically.

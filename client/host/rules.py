@@ -1,6 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 """
-FLARE v0.4 - Rule Definitions
+FLARE v0.6 - Rule Definitions
 ────────────────────────────
 Each rule is a function:
     check_*(event: dict, ioc: IOCLoader, state: RuleState) -> Optional[RuleResult]
@@ -265,13 +265,32 @@ def check_asrep_roasting(event: dict, ioc: IOCLoader, state: RuleState) -> Optio
     )
 
 
+def _resolve_src(event: dict) -> str:
+    """
+    Return the best available source identifier from a logon event.
+    Windows writes '-' for IpAddress on local interactive/network-API logons
+    (e.g. LogonUserW called on the same machine). Fall back to WorkstationName,
+    then the Computer field, so we never surface a bare '-' in alerts.
+    """
+    ip = event.get("IpAddress", "").strip()
+    if ip and ip != "-":
+        return ip
+    ws = event.get("WorkstationName", "").strip()
+    if ws and ws != "-":
+        return ws
+    comp = event.get("computer", "").strip()
+    if comp and comp != "-":
+        return comp
+    return "local"
+
+
 def check_brute_force(event: dict, ioc: IOCLoader, state: RuleState) -> Optional[RuleResult]:
     """
     Event 4625 — Failed logon. Threshold: >10 failures from same IP in 60s.
     """
     if event["event_id"] != 4625:
         return None
-    src_ip   = event.get("IpAddress", event.get("WorkstationName", "unknown"))
+    src_ip   = _resolve_src(event)
     username = event.get("TargetUserName", "")
 
     total, distinct = state.record(f"brute:{src_ip}", username)
@@ -314,7 +333,7 @@ def check_password_spray(event: dict, ioc: IOCLoader, state: RuleState) -> Optio
     """
     if event["event_id"] != 4625:
         return None
-    src_ip   = event.get("IpAddress", event.get("WorkstationName", "unknown"))
+    src_ip   = _resolve_src(event)
     username = event.get("TargetUserName", "")
 
     total, distinct = state.record(f"spray:{src_ip}", username)
@@ -925,6 +944,93 @@ def check_ioc_process_chain(event: dict, ioc: IOCLoader, state: RuleState) -> Op
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# ── NETWORK DISCOVERY ────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+
+def check_inbound_port_scan(event: dict, ioc: IOCLoader, state: RuleState) -> Optional[RuleResult]:
+    """
+    Events 5156 / 5157 — Windows Filtering Platform connection permitted or blocked.
+
+    A port scan shows up as many inbound connection events from the same source
+    IP to many different destination ports within a short window.
+
+    Requires "Filtering Platform Connection" auditing to be enabled:
+        auditpol /set /subcategory:"Filtering Platform Connection" /success:enable /failure:enable
+
+    Run the above in an Administrator command prompt once — it persists across reboots.
+
+    5156 = connection permitted (open ports — scanner found something)
+    5157 = connection blocked   (closed/filtered ports — the bulk of a scan)
+    """
+    if event["event_id"] not in (5156, 5157):
+        return None
+
+    # Only track inbound attempts (the scanner is probing us, not us scanning out).
+    # Windows WFP encodes direction as a resource string:
+    #   %%14592 = Inbound   %%14593 = Outbound
+    # We check for both the raw code and the formatted English string.
+    direction = event.get("Direction", event.get("direction", ""))
+    if direction:
+        is_inbound = ("14592" in direction) or ("inbound" in direction.lower())
+        if not is_inbound:
+            return None
+
+    # WFP field names as they appear in the raw EventData XML
+    src_ip   = (event.get("SourceAddress") or event.get("sourceaddress") or "").strip()
+    dst_port = (event.get("DestPort") or event.get("destport") or "").strip()
+
+    # Skip loopback, broadcast, unresolved
+    if not src_ip or src_ip in ("-", "0.0.0.0", "::", "::1", "127.0.0.1"):
+        return None
+    if not dst_port or dst_port == "-":
+        return None
+
+    # Sliding-window count: how many distinct destination ports from this source?
+    total, distinct_ports = state.record(f"portscan:{src_ip}", dst_port)
+
+    # Windows only generates 5156 (permitted) for OPEN ports — closed-port RSTs
+    # are handled by the kernel TCP stack before WFP can log them (no 5157).
+    # A desktop typically has 3 open ports (135 DCOM, 139 NetBIOS, 445 SMB).
+    # Any TCP connect scan of 1-5000 ports will hit all three, so threshold=3
+    # reliably catches a scan while being too specific to fire on normal browsing
+    # (which hits one service at a time, not 3 distinct ports in rapid succession).
+    _THRESHOLD = 3    # distinct open ports accessed from same source in 60s
+
+    if distinct_ports >= _THRESHOLD:
+        if not state.check_and_record_alert(f"portscan:{src_ip}"):
+            return None   # suppress duplicate alerts within the same burst
+        return RuleResult(
+            rule_id      = "net_portscan",
+            attack_type  = "Port Scan",
+            confidence   = 0.90,
+            mitre_id     = "T1046",
+            mitre_tactic = "Discovery",
+            suggestion   = (
+                f"Block {src_ip} at the perimeter firewall immediately. "
+                "Review which ports were found open (check 5156 events from same source). "
+                "If this is an internal IP, isolate the machine — it may be compromised "
+                "and performing internal reconnaissance."
+            ),
+            risk_note    = (
+                f"{src_ip} probed {distinct_ports} distinct destination ports on this host "
+                f"within 60 seconds ({total} total connection events). "
+                "Systematic port scanning is reconnaissance to map exposed services "
+                "before targeted exploitation."
+            ),
+            evidence = {
+                "_event_count":   total,          # sets event_count on the alert
+                "event_id":       event["event_id"],
+                "src_ip":         src_ip,
+                "distinct_ports": distinct_ports,
+                "total_events":   total,
+                "last_dst_port":  dst_port,
+                "last_protocol":  event.get("Protocol", ""),
+            },
+        )
+    return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Rule registry — ordered list of all active rules
 # Add new rules here. Order matters for threshold rules that share state keys.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1017,6 +1123,8 @@ ALL_RULES = [
     check_audit_policy_changed,
     check_defender_disabled,
     check_shadow_copy_deletion,
+    # Network discovery
+    check_inbound_port_scan,
     # IOC matching (run last — broadest checks)
     check_ioc_domain,
     check_ioc_ip,

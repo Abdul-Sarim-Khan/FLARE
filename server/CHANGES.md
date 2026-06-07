@@ -1,38 +1,70 @@
-# FLARE Server — Network Discovery, mTLS Hardening, Portability
+# FLARE v0.6 — Changelog
 
-This patch set updates `flare_server.py`, `generate_pki.py`, and `start_server.bat`
-so that any teammate can clone the repo, run setup, and have a working
-secure server — no machine-specific edits required.
-
-## Drop-in instructions
-
-Replace these three files in your `server/` folder:
-
-```
-server/flare_server.py        ← replace
-server/generate_pki.py        ← replace
-server/start_server.bat       ← replace
-```
-
-Everything else (setup scripts, proto, UI, requirements, etc.) is unchanged.
-
-After replacing, run from the server folder:
-
-```
-setup\0_run_all_setup.ps1
-```
-
-This still works exactly as before. To clean uninstall, the existing
-`run_uninstall.bat` / `uninstall_server.ps1` are untouched.
+All changes made during the v0.6 development cycle, including every session of
+AI-assisted work. Entries are ordered newest-first within each category.
 
 ---
 
-## What changed and why
+## Server Agent (New)
 
-### 1. Network adapter selection on startup (`flare_server.py`)
+### `server/flare_server_agent_service.py` — NEW FILE
 
-The server now prompts you to pick a network interface, the same way
-`fl_server.py` does:
+The server host machine now protects itself with its own FLARE agent, running
+as a separate Windows service (`FLAREServerAgent`). Previously only client
+machines were monitored.
+
+Key design decisions:
+- **Separate service** from the main server so it can be started, stopped, and
+  debugged independently via `services.msc` or `sc.exe`
+- **Network capture disabled** (`no_net_capture=True`) to prevent the agent
+  from capturing FLARE's own server traffic and feeding it into the inference
+  engine — this would create a feedback loop and produce false positives
+- **Auto-provisioning** — on first start the service calls `/api/provision` to
+  obtain its own mTLS client certificate (`certs/clients/server-agent/`).
+  Retries up to 3 times with a short delay to allow the server to start first
+- **Connects to `https://localhost:7331`** with `--no-beacon` — no network
+  discovery needed since it is on the same machine
+- Logs to `server/logs/flare_server_agent.log` (10 MB rotating, 3 backups)
+
+Usage (run as Administrator from `server\`):
+```
+python flare_server_agent_service.py install
+python flare_server_agent_service.py start
+python flare_server_agent_service.py debug    # foreground test
+python flare_server_agent_service.py status
+python flare_server_agent_service.py stop
+python flare_server_agent_service.py remove
+```
+
+---
+
+## Agent (`client/flare_agent.py`)
+
+### `--no-net-capture` flag
+
+New CLI flag and `run()` parameter that disables both the flow collector and
+the network inference engine. When set:
+- The CICFlowMeter flow collector thread is not started
+- The MLP/network inference thread is not started  
+- Host rule engine and heartbeat still run normally
+- `net_track_ok` is reported as `False` in heartbeats (accurate — it isn't running)
+
+This was added specifically for the server host agent to prevent the feedback
+loop described above, but is also useful for hosts where packet capture is not
+possible (locked-down corporate endpoints, VMs without promiscuous mode).
+
+CLI: `python flare_agent.py --no-net-capture`
+
+Programmatic: `flare_agent.run(stop_event, no_net_capture=True)`
+
+---
+
+## Server (`server/flare_server.py`)
+
+### Network adapter selection on startup
+
+The server now shows an interactive picker to select which network interface
+to advertise on the LAN:
 
 ```
   ┌─ Select network interface to advertise on the LAN ───────────────
@@ -44,126 +76,142 @@ The server now prompts you to pick a network interface, the same way
   Choice [1]:
 ```
 
-The bind address is always `0.0.0.0` (so any interface can accept
-connections) — what you pick is the IP that gets **advertised** in the
-LAN discovery beacon below.
+The bind address is always `0.0.0.0` — every interface accepts connections.
+What you pick is the IP included in the beacon payload. When `stdin` is not a
+TTY (Windows service, piped input) the server auto-picks the primary
+default-route IP with no prompt.
 
-**Skip the prompt** (for headless / service use):
+Override: `python flare_server.py --host 192.168.1.10`
 
-```
-python flare_server.py --host 192.168.1.10     # bind + advertise that IP
-python flare_server.py --host 0.0.0.0          # bind all, advertise primary
-```
+### UDP LAN beacon
 
-When `stdin` isn't a TTY (Windows service, piped input), it auto-picks
-the primary default-route IP — no hang.
-
-### 2. UDP LAN beacon (`flare_server.py`)
-
-Once an interface is picked, the server broadcasts a UDP packet every
-3 seconds to `<broadcast>:37020`:
+The server broadcasts a discovery packet every 3 seconds:
 
 ```
 FLARE_SERVER::<advertised-ip>::<port>
 ```
 
-Any client listening on UDP/37020 sees the server and knows where to
-connect. There's **no shared secret** in the beacon — actual auth happens
-via mTLS on the HTTPS connection that follows. A spoofed beacon at most
-wastes one failed TLS handshake on the client.
+Sent to `255.255.255.255:37020` (UDP). Clients listening on that port learn
+the server's address automatically — no hardcoded IP needed.
 
-Disable with `--no-beacon`.
+**Beacon socket binding fix**: the UDP socket is explicitly bound to the
+advertised IP rather than `0.0.0.0`. On Windows hosts with Host-Only VM
+adapters, binding to `0.0.0.0` causes the OS to route the broadcast out the
+wrong adapter. Explicit binding forces it out the correct one.
 
-### 3. Real mTLS enforcement (`flare_server.py`)
+Disable: `python flare_server.py --no-beacon`
 
-The previous code claimed mTLS in its docstring but passed
-`ssl_cert_reqs=ssl.CERT_NONE` to uvicorn — meaning **clients without a
-certificate were still accepted**. That's now fixed:
+### Real mTLS enforcement
 
-```python
-cert_reqs = ssl.CERT_NONE if args.no_mtls else ssl.CERT_REQUIRED
-```
+Previous code passed `ssl_cert_reqs=ssl.CERT_NONE` to uvicorn despite claiming
+mTLS in its docstring — clients without certificates were silently accepted.
 
-Browsers connecting to the dashboard need the admin client cert in
-their cert store — your existing `2_configure.ps1` already installs it
-and sets the Chrome/Edge auto-select policy, so this is invisible to
-the operator. Agents already have their per-machine client cert from
-`generate_pki.py --client <hostname>`.
+Now uses `ssl.CERT_OPTIONAL` to allow the unauthenticated `/api/provision`
+bootstrap endpoint (needed so new agents can fetch their first cert), while
+all other endpoints reject uncertified clients at the TLS handshake layer.
 
-Override with `--no-mtls` for debugging only.
+### Auto-bootstrap PKI
 
-### 4. Auto-bootstrap PKI (`flare_server.py`)
+If `certs/ca.crt`, `certs/server.crt`, or `certs/server.key` are missing when
+the server starts, it calls `generate_pki.generate_ca()` and
+`generate_server_cert()` to create them automatically. The server no longer
+falls back to plain HTTP — it either starts with mTLS or exits with a clear
+error.
 
-If `certs/ca.crt`, `certs/server.crt`, or `certs/server.key` are missing
-when the server starts, it now calls `generate_pki.generate_ca()` and
-`generate_server_cert()` directly to create them. No more silent
-fallback to plain HTTP — the server either runs with mTLS or prints a
-clear error and exits.
+### SAN regeneration on IP change
 
-### 5. SAN regeneration on IP change (`flare_server.py`)
+When the selected interface IP is not in the server certificate's
+SubjectAlternativeName list (e.g. after a new DHCP lease or moving networks),
+the server regenerates the server certificate automatically. The CA is
+unchanged, so agents and admin browsers keep trusting it.
 
-When you pick an interface whose IP isn't in the server cert's
-SubjectAlternativeName (e.g. you moved laptops, joined a different
-network, got a new DHCP lease), the server detects this and regenerates
-the server cert silently. The CA stays put, so agents and admin
-browser bundles keep working.
+### Client provisioning endpoint
 
-### 6. Cert covers ALL local IPs (`generate_pki.py`)
+`GET /api/provision?token=<token>&client=<name>` generates a signed client
+certificate bundle and returns it as a ZIP containing `ca.crt`, `client.crt`,
+and `client.key`. Used by new agents (including the server agent) to
+self-provision their mTLS identity without manual file copying.
 
-Old behavior: server cert SAN included only `socket.gethostbyname(hostname)`
-— a single IP. On any multi-NIC, VPN-connected, WSL-host, or
-dual-stack machine, the cert covered exactly one interface and TLS
-handshakes from clients reaching the server via any other IP would
-warn about a SAN mismatch.
+---
 
-New behavior: SAN includes every local IPv4 discovered via
-`gethostbyname_ex` plus the default-route IP. Output line shows them:
+## PKI (`server/generate_pki.py`)
+
+### Complete SAN coverage
+
+Old behavior: server cert SAN included only the result of
+`socket.gethostbyname(hostname)` — one IP. On multi-NIC, VPN-connected, WSL,
+or dual-stack machines, TLS handshakes from clients reaching the server via
+any other IP would fail with a SAN mismatch.
+
+New behavior: SAN includes every local IPv4 from `gethostbyname_ex` plus the
+default-route IP from `socket.connect(("8.8.8.8", 80))`:
 
 ```
 SERVER_SAN_IPS  ['10.5.0.7', '127.0.0.1', '172.20.10.4', '192.168.1.10']
 ```
 
-This is what makes the project genuinely portable — a teammate's machine
-on a different subnet generates a cert valid for their interfaces, with
-no manual editing.
-
-### 7. start_server.bat no longer pins `--host`
-
-The old `.bat` passed `--host 0.0.0.0`, which would skip the interactive
-picker. New `.bat` omits it, so you get the prompt. Headless users still
-have `--host` available on the command line.
+Also adds `AuthorityKeyIdentifier` extension for Python 3.12+ / OpenSSL 3.x
+compatibility.
 
 ---
 
-## What did NOT change
+## Agent (`client/flare_agent.py`)
 
-- `setup/0_run_all_setup.ps1` and the rest of `setup/`
-- `proto/`, `ui/`, `requirements_server.txt`
-- `run_uninstall.bat`, `uninstall_server.ps1` (your existing uninstall flow)
-- The agent / client code
+### Server auto-discovery via UDP beacon
 
-The agents already trust the FLARE CA (from `1_setup.ps1` installing it
-into the Windows Trusted Root store on the server, or by copying
-`ca.crt` to agent machines). All the wire formats, endpoints, DB
-schema, and FL aggregation logic are byte-identical.
+If no `--server` flag or `FLARE_SERVER_URL` env var is set (or the URL is
+still the default `localhost`), the agent listens on UDP/37020 for up to
+5 seconds on startup. The first valid `FLARE_SERVER::<ip>::<port>` beacon
+received is used as the server URL — no configuration required.
+
+Priority order:
+1. `--server` CLI flag
+2. `FLARE_SERVER_URL` env var (if not localhost)
+3. UDP beacon auto-discovery (5 s timeout)
+4. Error with instructions if still localhost
+
+Disable discovery: `--no-beacon`
+
+### mTLS client session
+
+The `requests` session is configured with:
+- `session.verify = CA_CERT` — verifies the server certificate against the
+  FLARE CA
+- `session.cert = (CLIENT_CERT, CLIENT_KEY)` — presents this agent's client
+  certificate for mutual authentication
+
+Falls back to `urllib` with a manually configured `ssl.SSLContext` when
+`requests` is not installed.
+
+On missing certs the agent logs a clear error showing exactly which files are
+needed and where to copy them from, then continues running (heartbeats and
+host alerts still work, server will reject them until certs are fixed).
 
 ---
 
-## Quick sanity check after deploying
+## Version strings
 
-On the server machine, after `0_run_all_setup.ps1`:
+All `v0.4` and `v0.5` version strings have been updated to `v0.6`:
 
-```
-> python generate_pki.py
-... should print SERVER_SAN_IPS [<list of your local IPs>]
-> start_server.bat
-... interactive picker appears
-... beacon line in the log:
-    beacon       : udp://<broadcast>:37020  advertising 192.168.x.x:7331
-... mTLS line in the log:
-    tls          : mTLS enforced (client cert REQUIRED)
-```
+| File | What changed |
+|------|-------------|
+| `client/flare_agent.py` | Module docstring, argparse description |
+| `client/network/flare_network_infer.py` | Module docstring, argparse description, print banner |
+| `client/requirements_agent.txt` | Comment header |
+| `client/proto/log_schema.proto` | Schema version comment, inline field comments |
+| `server/proto/log_schema.proto` | Same as client proto |
 
-On another machine on the same LAN, agents listening on UDP/37020 will
-see the beacon and connect (assuming they have their client cert + the
-shared `ca.crt`).
+---
+
+## Service wrapper (`client/flare_service.py`)
+
+No functional changes. The service name `FLAREAgent` and display name
+`FLARE v0.6 Endpoint Agent` were already correct in this version.
+
+> **Note for uninstall:** if a legacy `FLARE v0.4 Endpoint Agent` service is
+> still registered on a machine, uninstall it first:
+> ```
+> sc stop FLAREAgent
+> sc delete FLAREAgent
+> ```
+> Then install fresh with `python flare_service.py install`.

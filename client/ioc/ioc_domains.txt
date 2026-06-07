@@ -1,4 +1,4 @@
-# FLARE v0.4 - Malicious Domain IOC List
+﻿# FLARE v0.6 - Malicious Domain IOC List
 # ──────────────────────────────────────────────────────────────────────────────
 # Format:
 #   domain.com              exact match

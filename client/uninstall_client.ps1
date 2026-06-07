@@ -1,6 +1,6 @@
-<#
+﻿<#
 .SYNOPSIS
-    FLARE v0.4 - Client Uninstaller
+    FLARE v0.6 - Client Uninstaller
 
 .DESCRIPTION
     Reverses every system change made by the three client setup scripts:
@@ -52,7 +52,7 @@ function Write-OK   { param($msg) Write-Host "      OK  $msg" -ForegroundColor G
 function Write-Warn { param($msg) Write-Host "      !!  $msg" -ForegroundColor Yellow }
 
 Write-Host ""
-Write-Host "  FLARE v0.4 - Client Uninstaller" -ForegroundColor White
+Write-Host "  FLARE v0.6 - Client Uninstaller" -ForegroundColor White
 Write-Host "  Account  : $Account"
 Write-Host "  FlareDir : $FlareDir"
 
@@ -83,9 +83,12 @@ Start-Sleep -Milliseconds 500
 Write-Step "Removing FLAREAgent service"
 $svc = Get-Service -Name "FLAREAgent" -ErrorAction SilentlyContinue
 if ($svc) {
-    Stop-Service -Name "FLAREAgent" -Force -ErrorAction SilentlyContinue
-    sc.exe delete "FLAREAgent" | Out-Null
-    Write-OK "Service stopped and deleted"
+    # Use sc.exe stop instead of Stop-Service to avoid PowerShell printing
+    # the old registered display name in its waiting-for-stop warnings.
+    sc.exe stop "FLAREAgent" 2>&1 | Out-Null
+    Start-Sleep -Milliseconds 1500
+    sc.exe delete "FLAREAgent" 2>&1 | Out-Null
+    Write-OK "FLAREAgent service stopped and deleted"
 } else {
     Write-Warn "Service 'FLAREAgent' not found - skipping"
 }

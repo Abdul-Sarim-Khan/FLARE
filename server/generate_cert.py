@@ -1,5 +1,5 @@
-"""
-FLARE v0.4 - TLS Certificate Generator
+﻿"""
+FLARE v0.6 - TLS Certificate Generator
 
 Generates a self-signed RSA-2048 certificate for the FLARE server.
 Called by server/setup/1_setup.ps1 during server setup.

@@ -1,5 +1,5 @@
-@echo off
-:: FLARE v0.4 - Client Uninstall Launcher
+﻿@echo off
+:: FLARE v0.6 - Client Uninstall Launcher
 :: Bypasses PowerShell execution policy and runs the client uninstaller.
 :: Double-click this file or run it from any command prompt.
 

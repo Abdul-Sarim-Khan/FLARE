@@ -1,5 +1,5 @@
-"""
-FLARE v0.4 - PKI Generator (mTLS)
+﻿"""
+FLARE v0.6 - PKI Generator (mTLS)
 ──────────────────────────────────
 Generates a minimal 3-tier PKI for mutual TLS:
 

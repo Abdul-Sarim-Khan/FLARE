@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
-FLARE v0.4 - IOC Loader
+FLARE v0.6 - IOC Loader
 ─────────────────────
 Loads all four IOC files at startup and pre-indexes them for O(1) lookup.
 All lookups are case-insensitive. CIDR ranges are supported for IPs.
