@@ -1,0 +1,85 @@
+# FLARE - Malicious Domain IOC List
+# ──────────────────────────────────────────────────────────────────────────────
+# Format:
+#  domain.com              exact match
+#  *.domain.com            wildcard — matches any subdomain
+#  # comment  ignored
+#  blank lines             ignored
+#
+# Sources seeded from: abuse.ch URLhaus, Feodo Tracker, public threat reports
+# Last reviewed: 2026-04
+# ──────────────────────────────────────────────────────────────────────────────
+# Add your own findings below. One domain per line.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Known C2 / RAT infrastructure ────────────────────────────────────────────
+
+# Cobalt Strike / Metasploit common test/leaked domains
+*.cobaltstrike.com
+update.cobaltstrike.com
+beacon.cobaltstrike.com
+
+# AsyncRAT / QuasarRAT / njRAT known C2 patterns
+*.ddns.net
+*.no-ip.org
+*.hopto.org
+*.zapto.org
+*.servegame.com
+*.serveminecraft.net
+*.myftp.biz
+*.myftp.org
+*.redirectme.net
+*.serveblog.net
+*.servehttp.com
+*.serveftp.com
+
+# ── Historically observed malware C2 (abuse.ch Feodo/Bazaar) ─────────────────
+185.220.101.182.sslip.io
+cmstrack.top
+gotomailer.com
+freshdesk-cdn.net
+office365-cdn-update.com
+windowsupdate-cdn.live
+cdn-microsoft-update.com
+svchost-update.net
+winlogon-update.com
+taskhost-cdn.net
+
+# ── Phishing / initial access staging ────────────────────────────────────────
+secure-docusign-verify.com
+docusign-secure-portal.net
+microsoft-account-verify.net
+office365-login-secure.com
+sharepoint-file-request.net
+onedrive-file-shared.com
+google-drive-shared-doc.com
+dropbox-secure-link.net
+adobe-sign-request.com
+linkedin-message-secure.net
+
+# ── Known malware distribution ───────────────────────────────────────────────
+pastebin.com                  # frequently used for payload staging — review context
+paste.ee
+ghostbin.co
+controlc.com
+hastebin.com
+*.ngrok.io                    # legitimate tunnelling tool, abused for C2
+*.ngrok-free.app
+*.loca.lt
+*.serveo.net
+*.trycloudflare.com           # Cloudflare tunnel — abused for C2 evasion
+
+# ── TOR / Anonymisation ──────────────────────────────────────────────────────
+*.onion.to
+*.onion.ly
+*.onion.pet
+*.tor2web.org
+*.tor2web.fi
+
+# ── Cryptocurrency miners / malvertising ─────────────────────────────────────
+coinhive.com
+minegate.pw
+crypto-loot.com
+monerise.com
+webmine.pro
+xmrig.com                     # XMRig miner — legitimate binary, often weaponised
